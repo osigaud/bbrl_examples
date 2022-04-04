@@ -5,7 +5,7 @@ import torch.nn as nn
 from my_salina_examples.models.salina_shared_models import mlp
 
 
-class Q_Agent(Agent):
+class QAgent(Agent):
     def __init__(self, state_dim, action_dim, hidden_layers, **kwargs):
         super().__init__()
         self.model = mlp([state_dim + action_dim] + list(hidden_layers) + [1], activation=nn.ReLU)
@@ -20,7 +20,7 @@ class Q_Agent(Agent):
         self.set(("q_value", t), q_value)
 
 
-class V_Agent(Agent):
+class VAgent(Agent):
     def __init__(self, state_dim, hidden_layers, **kwargs):
         super().__init__()
         self.model = mlp([state_dim] + list(hidden_layers) + [1], activation=nn.ReLU)
