@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from my_salina_examples.models.salina_shared_models import mlp
-# from models.salina_shared_models import mlp
+
 
 class Q_Agent(Agent):
     def __init__(self, state_dim, action_dim, hidden_layers, **kwargs):

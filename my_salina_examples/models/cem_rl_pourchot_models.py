@@ -1,13 +1,11 @@
 from copy import deepcopy
-import torch.nn as nn
-import torch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 import numpy as np
 
-## All these agents have been taken from
+# All these agents have been taken from
 # https://github.com/apourchot/CEM-RL
 
 
@@ -38,9 +36,9 @@ class RLNN(nn.Module):
             tmp = np.product(param.size())
 
             if torch.cuda.is_available():
-                param.data.copy_(torch.from_numpy(params[cpt : cpt + tmp]).view(param.size()).cuda())
+                param.data.copy_(torch.from_numpy(params[cpt: cpt + tmp]).view(param.size()).cuda())
             else:
-                param.data.copy_(torch.from_numpy(params[cpt : cpt + tmp]).view(param.size()))
+                param.data.copy_(torch.from_numpy(params[cpt: cpt + tmp]).view(param.size()))
             cpt += tmp
 
     def get_params(self):
@@ -181,7 +179,7 @@ class CriticTD3(RLNN):
         return x1, x2
 
 
-class Actor(RLNN):
+class PourchotActor(RLNN):
     def __init__(self, state_dim, action_dim, max_action, args, **kwargs):
         super(Actor, self).__init__(state_dim, action_dim, max_action)
 
@@ -236,7 +234,7 @@ class Actor(RLNN):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
 
-class Critic(RLNN):
+class PourchotCritic(RLNN):
     def __init__(self, state_dim, action_dim, max_action, args, **kwargs):
         super(Critic, self).__init__(state_dim, action_dim, 1)
 
@@ -296,7 +294,7 @@ class Critic(RLNN):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
 
-class CriticTD3(RLNN):
+class PourchotCriticTD3(RLNN):
     def __init__(self, state_dim, action_dim, max_action, args, **kwargs):
         super(CriticTD3, self).__init__(state_dim, action_dim, 1)
 

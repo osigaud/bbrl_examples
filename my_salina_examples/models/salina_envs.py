@@ -18,7 +18,7 @@ class EnvAgent(GymAgent):
     def get_obs_and_actions_sizes_discrete(self):
         return self.observation_space.shape[0], self.action_space.n
 
-    
+
 class AutoResetEnvAgent(AutoResetGymAgent):
     # Create the environment agent
     # This agent implements N gym environments with auto-reset
@@ -35,7 +35,7 @@ class AutoResetEnvAgent(AutoResetGymAgent):
     def get_obs_and_actions_sizes_discrete(self):
         return self.observation_space.shape[0], self.action_space.n
 
-    
+
 class NoAutoResetEnvAgent(NoAutoResetGymAgent):
     # Create the environment agent
     # This agent implements N gym environments with auto-reset
