@@ -1,5 +1,6 @@
-from salina import Agent, get_arguments, instantiate_class, Workspace, get_class, instantiate_class
+from salina import get_arguments, get_class, instantiate_class
 from salina.agents.gyma import AutoResetGymAgent, NoAutoResetGymAgent, GymAgent
+
 
 class EnvAgent(GymAgent):
     # Create the environment agent
@@ -17,6 +18,7 @@ class EnvAgent(GymAgent):
     def get_obs_and_actions_sizes_discrete(self):
         return self.observation_space.shape[0], self.action_space.n
 
+    
 class AutoResetEnvAgent(AutoResetGymAgent):
     # Create the environment agent
     # This agent implements N gym environments with auto-reset
@@ -33,6 +35,7 @@ class AutoResetEnvAgent(AutoResetGymAgent):
     def get_obs_and_actions_sizes_discrete(self):
         return self.observation_space.shape[0], self.action_space.n
 
+    
 class NoAutoResetEnvAgent(NoAutoResetGymAgent):
     # Create the environment agent
     # This agent implements N gym environments with auto-reset
