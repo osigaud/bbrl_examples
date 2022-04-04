@@ -2,7 +2,7 @@ from salina import Agent
 import torch
 import torch.nn as nn
 
-from salina.models.salina_shared import mlp
+from my_salina_examples.models.salina_shared import mlp
 
 
 class DeterministicAgent(Agent):

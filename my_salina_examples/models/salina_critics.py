@@ -2,8 +2,7 @@ from salina import Agent
 import torch
 import torch.nn as nn
 
-from salina.models.salina_shared import mlp
-
+from my_salina_examples.models.salina_shared import mlp
 
 class Q_Agent(Agent):
     def __init__(self, state_dim, action_dim, hidden_layers, **kwargs):
