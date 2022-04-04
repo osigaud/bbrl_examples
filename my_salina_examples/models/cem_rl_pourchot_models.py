@@ -1,13 +1,13 @@
 from copy import deepcopy
 import torch.nn as nn
-import torch 
+import torch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 import numpy as np
 
-## All these agents have been taken from 
+## All these agents have been taken from
 # https://github.com/apourchot/CEM-RL
 
 
@@ -15,17 +15,15 @@ if torch.cuda.is_available():
     FloatTensor = torch.cuda.FloatTensor
 else:
     FloatTensor = torch.FloatTensor
-USE_CUDA =torch.cuda.is_available()
+USE_CUDA = torch.cuda.is_available()
 
 
 def to_numpy(var):
     return var.cpu().data.numpy() if USE_CUDA else var.data.numpy()
 
 
-
 class RLNN(nn.Module):
-
-    def __init__(self, state_dim, action_dim, max_action,**kwargs):
+    def __init__(self, state_dim, action_dim, max_action, **kwargs):
         super(RLNN, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -40,19 +38,16 @@ class RLNN(nn.Module):
             tmp = np.product(param.size())
 
             if torch.cuda.is_available():
-                param.data.copy_(torch.from_numpy(
-                    params[cpt:cpt + tmp]).view(param.size()).cuda())
+                param.data.copy_(torch.from_numpy(params[cpt : cpt + tmp]).view(param.size()).cuda())
             else:
-                param.data.copy_(torch.from_numpy(
-                    params[cpt:cpt + tmp]).view(param.size()))
+                param.data.copy_(torch.from_numpy(params[cpt : cpt + tmp]).view(param.size()))
             cpt += tmp
 
     def get_params(self):
         """
         Returns parameters of the actor
         """
-        return deepcopy(np.hstack([to_numpy(v).flatten() for v in
-                                   self.parameters()]))
+        return deepcopy(np.hstack([to_numpy(v).flatten() for v in self.parameters()]))
 
     def get_grads(self):
         """
@@ -73,26 +68,19 @@ class RLNN(nn.Module):
         if filename is None:
             return
 
-        self.load_state_dict(
-            torch.load('{}/{}.pkl'.format(filename, net_name),
-                       map_location=lambda storage, loc: storage)
-        )
+        self.load_state_dict(torch.load("{}/{}.pkl".format(filename, net_name), map_location=lambda storage, loc: storage))
 
     def save_model(self, output, net_name):
         """
         Saves the model
         """
-        torch.save(
-            self.state_dict(),
-            '{}/{}.pkl'.format(output, net_name)
-        )
+        torch.save(self.state_dict(), "{}/{}.pkl".format(output, net_name))
 
 
 class Actor(RLNN):
-
-    def __init__(self, state_dim, action_dim, max_action, layer_norm=False, init=True,**kwargs):
+    def __init__(self, state_dim, action_dim, max_action, layer_norm=False, init=True, **kwargs):
         super(Actor, self).__init__(state_dim, action_dim, max_action)
-        
+
         self.l1 = nn.Linear(state_dim, 400)
         self.l2 = nn.Linear(400, 300)
         self.l3 = nn.Linear(300, action_dim)
@@ -118,7 +106,7 @@ class Actor(RLNN):
 
 
 class Critic(RLNN):
-    def __init__(self, state_dim, action_dim, layer_norm=False,**kwargs):
+    def __init__(self, state_dim, action_dim, layer_norm=False, **kwargs):
         super(Critic, self).__init__(state_dim, action_dim, 1)
 
         self.l1 = nn.Linear(state_dim + action_dim, 400)
@@ -146,7 +134,7 @@ class Critic(RLNN):
 
 
 class CriticTD3(RLNN):
-    def __init__(self, state_dim, action_dim, layer_norm=False,**kwargs):
+    def __init__(self, state_dim, action_dim, layer_norm=False, **kwargs):
         super(CriticTD3, self).__init__(state_dim, action_dim, 1)
 
         # Q1 architecture
@@ -192,9 +180,9 @@ class CriticTD3(RLNN):
 
         return x1, x2
 
-class Actor(RLNN):
 
-    def __init__(self, state_dim, action_dim, max_action, args,**kwargs):
+class Actor(RLNN):
+    def __init__(self, state_dim, action_dim, max_action, args, **kwargs):
         super(Actor, self).__init__(state_dim, action_dim, max_action)
 
         self.l1 = nn.Linear(state_dim, 400)
@@ -245,12 +233,11 @@ class Actor(RLNN):
 
         # Update the frozen target models
         for param, target_param in zip(self.parameters(), actor_t.parameters()):
-            target_param.data.copy_(
-                self.tau * param.data + (1 - self.tau) * target_param.data)
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
 
 class Critic(RLNN):
-    def __init__(self, state_dim, action_dim, max_action, args,**kwargs):
+    def __init__(self, state_dim, action_dim, max_action, args, **kwargs):
         super(Critic, self).__init__(state_dim, action_dim, 1)
 
         self.l1 = nn.Linear(state_dim + action_dim, 400)
@@ -306,12 +293,11 @@ class Critic(RLNN):
 
         # Update the frozen target models
         for param, target_param in zip(self.parameters(), critic_t.parameters()):
-            target_param.data.copy_(
-                self.tau * param.data + (1 - self.tau) * target_param.data)
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
 
 class CriticTD3(RLNN):
-    def __init__(self, state_dim, action_dim, max_action, args,**kwargs):
+    def __init__(self, state_dim, action_dim, max_action, args, **kwargs):
         super(CriticTD3, self).__init__(state_dim, action_dim, 1)
 
         # Q1 architecture
@@ -372,8 +358,9 @@ class CriticTD3(RLNN):
         states, n_states, actions, rewards, dones = memory.sample(batch_size)
 
         # Select action according to policy and add clipped noise
-        noise = np.clip(np.random.normal(0, self.policy_noise, size=(
-            batch_size, self.action_dim)), -self.noise_clip, self.noise_clip)
+        noise = np.clip(
+            np.random.normal(0, self.policy_noise, size=(batch_size, self.action_dim)), -self.noise_clip, self.noise_clip
+        )
         n_actions = actor_t(n_states) + FloatTensor(noise)
         n_actions = n_actions.clamp(-self.max_action, self.max_action)
 
@@ -387,8 +374,7 @@ class CriticTD3(RLNN):
         current_Q1, current_Q2 = self(states, actions)
 
         # Compute critic loss
-        critic_loss = nn.MSELoss()(current_Q1, target_Q) + \
-            nn.MSELoss()(current_Q2, target_Q)
+        critic_loss = nn.MSELoss()(current_Q1, target_Q) + nn.MSELoss()(current_Q2, target_Q)
 
         # Optimize the critic
         self.optimizer.zero_grad()
@@ -397,9 +383,4 @@ class CriticTD3(RLNN):
 
         # Update the frozen target models
         for param, target_param in zip(self.parameters(), critic_t.parameters()):
-            target_param.data.copy_(
-                self.tau * param.data + (1 - self.tau) * target_param.data)
-
-
-
-    
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)

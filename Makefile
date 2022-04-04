@@ -1,5 +1,5 @@
 SHELL=/bin/bash
-LINT_PATHS=my_gym/ *.py tests/
+LINT_PATHS=my_salina_examples/ *.py tests/
 
 all: format type lint
 
