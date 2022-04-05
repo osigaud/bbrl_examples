@@ -7,6 +7,7 @@ from salina import Agent
 # for a more generic response.
 # add decorator pattern to use alois pourchot'agents as salina agents
 
+
 class Salina_Actor_Decorator(Agent):
     def __init__(self, nn):
         super().__init__()

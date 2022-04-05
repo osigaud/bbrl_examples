@@ -36,9 +36,9 @@ class RLNN(nn.Module):
             tmp = np.product(param.size())
 
             if torch.cuda.is_available():
-                param.data.copy_(torch.from_numpy(params[cpt: cpt + tmp]).view(param.size()).cuda())
+                param.data.copy_(torch.from_numpy(params[cpt : cpt + tmp]).view(param.size()).cuda())
             else:
-                param.data.copy_(torch.from_numpy(params[cpt: cpt + tmp]).view(param.size()))
+                param.data.copy_(torch.from_numpy(params[cpt : cpt + tmp]).view(param.size()))
             cpt += tmp
 
     def get_params(self):
@@ -181,7 +181,7 @@ class CriticTD3(RLNN):
 
 class PourchotActor(RLNN):
     def __init__(self, state_dim, action_dim, max_action, args, **kwargs):
-        super(Actor, self).__init__(state_dim, action_dim, max_action)
+        super(PourchotActor, self).__init__(state_dim, action_dim, max_action)
 
         self.l1 = nn.Linear(state_dim, 400)
         self.l2 = nn.Linear(400, 300)
@@ -236,7 +236,7 @@ class PourchotActor(RLNN):
 
 class PourchotCritic(RLNN):
     def __init__(self, state_dim, action_dim, max_action, args, **kwargs):
-        super(Critic, self).__init__(state_dim, action_dim, 1)
+        super(PourchotCritic, self).__init__(state_dim, action_dim, 1)
 
         self.l1 = nn.Linear(state_dim + action_dim, 400)
         self.l2 = nn.Linear(400, 300)
@@ -296,7 +296,7 @@ class PourchotCritic(RLNN):
 
 class PourchotCriticTD3(RLNN):
     def __init__(self, state_dim, action_dim, max_action, args, **kwargs):
-        super(CriticTD3, self).__init__(state_dim, action_dim, 1)
+        super(PourchotCriticTD3, self).__init__(state_dim, action_dim, 1)
 
         # Q1 architecture
         self.l1 = nn.Linear(state_dim + action_dim, 400)

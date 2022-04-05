@@ -7,7 +7,7 @@ pytest:
 	python3 -m pytest --cov-config .coveragerc --cov-report html --cov-report term --cov=. -v
 
 type:
-	pytype -j auto
+	# pytype -j auto ${LINT_PATHS}
 
 lint:
 	# stop the build if there are Python syntax errors or undefined names

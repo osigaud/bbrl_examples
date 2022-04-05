@@ -3,15 +3,9 @@ from my_salina_examples.models.salina_critics import VAgent, QAgent
 from my_salina_examples.models.salina_envs import EnvAgent
 
 cfg = {
-    "logger": {
-        "classname": "salina.logger.TFLogger",
-        "log_dir": "./tmp",
-        "cache_size": 10000,
-        "every_n_seconds": 10,
-        "verbose": False,
-    },
+    "logger": {"classname": "salina.logger.TFLogger", "log_dir": "./tmp", "every_n_seconds": 10, "verbose": False},
     "algorithm": {
-        "env_seed": 432,
+        "seed": 432,
         "n_envs": 8,
         "n_timesteps": 16,
         "max_epochs": 10000,
@@ -26,5 +20,5 @@ cfg = {
 }
 
 envAgent = EnvAgent(cfg)
-pa = ProbAgent(cfg)
-aa = ActionAgent(cfg)
+pa = ProbAgent(2, [32], 1)
+aa = ActionAgent()
