@@ -13,11 +13,11 @@ class EnvAgent(GymAgent):
         del env
 
     def get_obs_and_actions_sizes(self):
-        if self.action_space.isinstance(gym.spaces.Box):
+        if isinstance(self.action_space, gym.spaces.Box):
             # Return the size of the observation and action spaces of the environment
             # In the case of a continuous action environment
             return self.observation_space.shape[0], self.action_space.shape[0]
-        elif self.action_space.isinstance(gym.spaces.Discrete):
+        elif isinstance(self.action_space, gym.spaces.Discrete):
             # Return the size of the observation and action spaces of the environment
             return self.observation_space.shape[0], self.action_space.n
         else:
@@ -36,11 +36,11 @@ class AutoResetEnvAgent(AutoResetGymAgent):
         del env
 
     def get_obs_and_actions_sizes(self):
-        if self.action_space.isinstance(gym.spaces.Box):
+        if isinstance(self.action_space, gym.spaces.Box):
             # Return the size of the observation and action spaces of the environment
             # In the case of a continuous action environment
             return self.observation_space.shape[0], self.action_space.shape[0]
-        elif self.action_space.isinstance(gym.spaces.Discrete):
+        elif isinstance(self.action_space, gym.spaces.Discrete):
             # Return the size of the observation and action spaces of the environment
             return self.observation_space.shape[0], self.action_space.n
         else:
@@ -59,11 +59,11 @@ class NoAutoResetEnvAgent(NoAutoResetGymAgent):
         del env
 
     def get_obs_and_actions_sizes(self):
-        if self.action_space.isinstance(gym.spaces.Box):
+        if isinstance(self.action_space, gym.spaces.Box):
             # Return the size of the observation and action spaces of the environment
             # In the case of a continuous action environment
             return self.observation_space.shape[0], self.action_space.shape[0]
-        elif self.action_space.isinstance(gym.spaces.Discrete):
+        elif isinstance(self.action_space, gym.spaces.Discrete):
             # Return the size of the observation and action spaces of the environment
             return self.observation_space.shape[0], self.action_space.n
         else:
