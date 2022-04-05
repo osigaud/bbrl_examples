@@ -13,10 +13,16 @@ class EnvAgent(GymAgent):
         del env
 
     def get_obs_and_actions_sizes(self):
-        return self.observation_space.shape[0], self.action_space.shape[0]
-
-    def get_obs_and_actions_sizes_discrete(self):
-        return self.observation_space.shape[0], self.action_space.n
+        if self.action_space.isinstance(gym.spaces.Box):
+            # Return the size of the observation and action spaces of the environment
+            # In the case of a continuous action environment
+            return self.observation_space.shape[0], self.action_space.shape[0]
+        elif self.action_space.isinstance(gym.spaces.Discrete):
+            # Return the size of the observation and action spaces of the environment
+            return self.observation_space.shape[0], self.action_space.n
+        else:
+            print ("unknown type of action space", self.action_space)
+            return None
 
 
 class AutoResetEnvAgent(AutoResetGymAgent):
@@ -30,10 +36,16 @@ class AutoResetEnvAgent(AutoResetGymAgent):
         del env
 
     def get_obs_and_actions_sizes(self):
-        return self.observation_space.shape[0], self.action_space.shape[0]
-
-    def get_obs_and_actions_sizes_discrete(self):
-        return self.observation_space.shape[0], self.action_space.n
+        if self.action_space.isinstance(gym.spaces.Box):
+            # Return the size of the observation and action spaces of the environment
+            # In the case of a continuous action environment
+            return self.observation_space.shape[0], self.action_space.shape[0]
+        elif self.action_space.isinstance(gym.spaces.Discrete):
+            # Return the size of the observation and action spaces of the environment
+            return self.observation_space.shape[0], self.action_space.n
+        else:
+            print ("unknown type of action space", self.action_space)
+            return None
 
 
 class NoAutoResetEnvAgent(NoAutoResetGymAgent):
@@ -47,7 +59,13 @@ class NoAutoResetEnvAgent(NoAutoResetGymAgent):
         del env
 
     def get_obs_and_actions_sizes(self):
-        return self.observation_space.shape[0], self.action_space.shape[0]
-
-    def get_obs_and_actions_sizes_discrete(self):
-        return self.observation_space.shape[0], self.action_space.n
+        if self.action_space.isinstance(gym.spaces.Box):
+            # Return the size of the observation and action spaces of the environment
+            # In the case of a continuous action environment
+            return self.observation_space.shape[0], self.action_space.shape[0]
+        elif self.action_space.isinstance(gym.spaces.Discrete):
+            # Return the size of the observation and action spaces of the environment
+            return self.observation_space.shape[0], self.action_space.n
+        else:
+            print ("unknown type of action space", self.action_space)
+            return None
