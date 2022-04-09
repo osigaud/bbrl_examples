@@ -16,17 +16,19 @@ import time
 
 import torch
 import torch.nn as nn
+import torch.autograd as autograd
+from torch.autograd import detect_anomaly
 
 from my_salina_examples.models.salina_actors import ProbAgent, ActionAgent
 from my_salina_examples.models.salina_critics import VAgent
-from my_salina_examples.models.salina_envs import NoAutoResetEnvAgent
+from my_salina_examples.models.salina_envs import AutoResetEnvAgent
 from my_salina_examples.models.salina_loggers import Logger
 
 
 # Create the A2C Agent
 def create_a2c_agent(cfg, env_agent):
     observation_size, n_actions = env_agent.get_obs_and_actions_sizes()
-    print(observation_size, n_actions)
+    # print(observation_size, n_actions)
     prob_agent = ProbAgent(observation_size, cfg.algorithm.architecture.hidden_size, n_actions)
     action_agent = ActionAgent()
     critic_agent = VAgent(observation_size, cfg.algorithm.architecture.hidden_size)
@@ -80,12 +82,12 @@ def compute_a2c_loss(action_probs, action, td):
     return a2c_loss.mean()
 
 
-def run_a2c(cfg):
+def run_a2c(cfg, max_grad_norm=0.5):
     # 1)  Build the  logger
     logger = Logger(cfg)
 
     # 2) Create the environment agent
-    env_agent = NoAutoResetEnvAgent(cfg)
+    env_agent = AutoResetEnvAgent(cfg)
 
     # 3) Create the A2C Agent
     a2c_agent, prob_agent, critic_agent = create_a2c_agent(cfg, env_agent)
@@ -103,7 +105,6 @@ def run_a2c(cfg):
     optimizer = setup_optimizers(cfg, prob_agent, critic_agent)
 
     # 7) Training loop
-    epoch = 0
     for epoch in range(cfg.algorithm.max_epochs):
         # Execute the agent in the workspace
         if epoch > 0:
@@ -118,15 +119,19 @@ def run_a2c(cfg):
 
         # Get relevant tensors (size are timestep x n_envs x ....)
         critic, done, action_probs, reward, action = workspace["critic", "env/done", "action_probs", "env/reward", "action"]
+        # print(action.flatten())
+        # print(reward.flatten())
 
         # Compute critic loss
         critic_loss, td = compute_critic_loss(cfg, reward, done, critic)
 
         # Compute entropy loss
-        entropy_loss = torch.distributions.Categorical(action_probs).entropy().mean()
+        # entropy_loss = torch.distributions.Categorical(action_probs).entropy().mean()
+        entropy_loss = torch.mean(workspace['entropy'])
 
         # Compute A2C loss
         a2c_loss = compute_a2c_loss(action_probs, action, td)
+        # print(a2c_loss.mean())
 
         # Store the losses for tensorboard display
         logger.log_losses(cfg, epoch, critic_loss, entropy_loss, a2c_loss)
@@ -140,6 +145,7 @@ def run_a2c(cfg):
 
         optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(prob_agent.parameters(), max_grad_norm)
         optimizer.step()
 
         # Compute the cumulated reward on final_state
@@ -147,7 +153,7 @@ def run_a2c(cfg):
         creward = creward[done]
         if creward.size()[0] > 0:
             logger.add_log("reward", creward.mean(), epoch)
-        print(f"epoch: {epoch}, reward: {reward.shape}")
+        print(f"epoch: {epoch}, reward: {creward.mean()}")
 
 
 params = {
@@ -158,29 +164,23 @@ params = {
                "every_n_seconds": 10},
     "algorithm": {
         "seed": 432,
-        "n_envs": 1,
+        "n_envs": 8,
         "n_timesteps": 200,
         "max_epochs": 1000,
         "discount_factor": 0.95,
         "entropy_coef": 0.001,
         "critic_coef": 1.0,
         "a2c_coef": 0.1,
-        "architecture": {"hidden_size": [32]},
+        "architecture": {"hidden_size": [24, 36]},
     },
-    "gym_env": {"classname": "__main__.make_gym_env", "env_name": "CartPole-v1", "max_episode_steps": 100},
+    "gym_env": {"classname": "__main__.make_gym_env",
+                "env_name": "CartPole-v1",
+                "max_episode_steps": 500},
     "optimizer": {"classname": "torch.optim.Adam", "lr": 0.01},
 }
 
-# %load_ext tensorboard
-# %tensorboard --logdir ./tmp
-
-
-def main(cfg: DictConfig):
-    config = OmegaConf.create(params)
-    run_a2c(cfg)
-
-
 if __name__ == "__main__":
-    sys.path.append(os.getcwd())
-    config = OmegaConf.create(params)
-    main(config)
+    # with autograd.detect_anomaly():
+        sys.path.append(os.getcwd())
+        config = OmegaConf.create(params)
+        run_a2c(config)

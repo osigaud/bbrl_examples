@@ -30,10 +30,12 @@ class ProbAgent(Agent):
     def forward(self, t, **kwargs):
         observation = self.get(("env/env_obs", t))
         scores = self.model(observation)
-        probs = torch.softmax(scores, dim=-1)
-        if torch.any(torch.isnan(probs)):
+        action_probs = torch.softmax(scores, dim=-1)
+        if torch.any(torch.isnan(action_probs)):
             print("Nan Here")
-        self.set(("action_probs", t), probs)
+        self.set(("action_probs", t), action_probs)
+        entropy = torch.distributions.Categorical(action_probs).entropy()
+        self.set(("entropy", t), entropy)
 
 
 class ActionAgent(Agent):
@@ -48,6 +50,8 @@ class ActionAgent(Agent):
             action = probs.argmax(1)
 
         self.set(("action", t), action)
+
+# All the actors below use a squashed Gaussian policy, that is the output is the tanh of a Normal distribution
 
 
 class ContinuousActionTunableVarianceAgent(Agent):
