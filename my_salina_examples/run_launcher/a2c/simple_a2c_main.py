@@ -1,4 +1,5 @@
-import sys, os
+import sys
+import os
 
 import gym
 import my_gym
@@ -6,7 +7,7 @@ import my_gym
 from gym.wrappers import TimeLimit
 from omegaconf import DictConfig, OmegaConf
 from salina import instantiate_class, get_arguments, get_class, Workspace
-from salina.agents import Agents, TemporalAgent, NRemoteAgent
+from salina.agents import Agents, TemporalAgent
 from salina.logger import TFLogger
 import hydra
 
@@ -15,7 +16,6 @@ import time
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from my_salina_examples.models.salina_actors import ProbAgent, ActionAgent
 from my_salina_examples.models.salina_critics import VAgent
@@ -63,15 +63,6 @@ def setup_optimizers(cfg, prob_agent, critic_agent):
     return optimizer
 
 
-def execute_agent(cfg, epoch, workspace, agent):
-    if epoch > 0:
-        workspace.zero_grad()
-        workspace.copy_n_last_steps(1)
-        agent(workspace, t=1, n_steps=cfg.algorithm.n_timesteps - 1, stochastic=True)
-    else:
-        agent(workspace, t=0, n_steps=cfg.algorithm.n_timesteps, stochastic=True)
-
-
 def compute_critic_loss(cfg, reward, done, critic):
     # Compute temporal difference
     target = reward[1:] + cfg.algorithm.discount_factor * critic[1:].detach() * (1 - done[1:].float())
@@ -115,7 +106,12 @@ def run_a2c(cfg):
     epoch = 0
     for epoch in range(cfg.algorithm.max_epochs):
         # Execute the agent in the workspace
-        execute_agent(cfg, epoch, workspace, a2c_agent)
+        if epoch > 0:
+            workspace.zero_grad()
+            workspace.copy_n_last_steps(1)
+            a2c_agent(workspace, t=1, n_steps=cfg.algorithm.n_timesteps - 1, stochastic=True)
+        else:
+            a2c_agent(workspace, t=0, n_steps=cfg.algorithm.n_timesteps, stochastic=True)
 
         # Compute the critic value over the whole workspace
         tcritic_agent(workspace, n_steps=cfg.algorithm.n_timesteps)
@@ -151,15 +147,20 @@ def run_a2c(cfg):
         creward = creward[done]
         if creward.size()[0] > 0:
             logger.add_log("reward", creward.mean(), epoch)
+        print(f"epoch: {epoch}, reward: {reward.shape}")
 
 
 params = {
-    "logger": {"classname": "salina.logger.TFLogger", "log_dir": "./tmp", "verbose": False, "every_n_seconds": 10},
+    "logger": {"classname": "salina.logger.TFLogger",
+               "log_dir": "./tmp",
+               "verbose": False,
+               # "cache_size": 10000,
+               "every_n_seconds": 10},
     "algorithm": {
         "seed": 432,
-        "n_envs": 8,
+        "n_envs": 1,
         "n_timesteps": 200,
-        "max_epochs": 10000,
+        "max_epochs": 1000,
         "discount_factor": 0.95,
         "entropy_coef": 0.001,
         "critic_coef": 1.0,
@@ -176,9 +177,10 @@ params = {
 
 def main(cfg: DictConfig):
     config = OmegaConf.create(params)
-    run_a2c(config)
+    run_a2c(cfg)
 
 
 if __name__ == "__main__":
     sys.path.append(os.getcwd())
-    main(params)
+    config = OmegaConf.create(params)
+    main(config)
