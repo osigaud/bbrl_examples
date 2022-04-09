@@ -120,7 +120,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
         # Get relevant tensors (size are timestep x n_envs x ....)
         critic, done, action_probs, reward, action = workspace["critic", "env/done", "action_probs", "env/reward", "action"]
         # print(action.flatten())
-        print(reward)
+        # print(reward)
 
         # Compute critic loss
         critic_loss, td = compute_critic_loss(cfg, reward, done, critic)
@@ -166,7 +166,7 @@ params = {
         "seed": 432,
         "n_envs": 8,
         "n_timesteps": 200,
-        "max_epochs": 10,
+        "max_epochs": 1000,
         "discount_factor": 0.95,
         "entropy_coef": 0.001,
         "critic_coef": 1.0,
