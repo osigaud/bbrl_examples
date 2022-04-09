@@ -1,15 +1,16 @@
-from salina import Agent, Agent
+from salina import Agent
 import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
 
-from my_salina_examples.models.salina_shared_models import mlp
+from my_salina_examples.models.salina_shared_models import build_mlp, build_backbone
 
 
 class DeterministicAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
-        self.model = mlp([state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU, output_activation=nn.Tanh)
+        layers = [state_dim] + list(hidden_layers) + [action_dim]
+        self.model = build_mlp(layers, activation=nn.ReLU, output_activation=nn.Tanh)
 
     def forward(self, t, epsilon=0, **kwargs):
         obs = self.get(("env/env_obs", t))
@@ -24,7 +25,7 @@ class DeterministicAgent(Agent):
 class ProbAgent(Agent):
     def __init__(self, state_dim, hidden_layers, n_action, **kwargs):
         super().__init__(name="prob_agent")
-        self.model = mlp([state_dim] + list(hidden_layers) + [n_action], activation=nn.ReLU)
+        self.model = build_mlp([state_dim] + list(hidden_layers) + [n_action], activation=nn.ReLU)
 
     def forward(self, t, **kwargs):
         observation = self.get(("env/env_obs", t))
@@ -52,13 +53,14 @@ class ActionAgent(Agent):
 class ContinuousActionTunableVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
-        self.model = mlp([state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU, output_activation=nn.Tanh)
+        layers = [state_dim] + list(hidden_layers) + [action_dim]
+        self.model = build_mlp(layers, activation=nn.ReLU, output_activation=nn.Tanh)
         self.std_param = nn.parameter.Parameter(torch.randn(action_dim, 1))
         self.soft_plus = torch.nn.Softplus()
 
     def forward(self, t, stochastic, **kwargs):
-        input = self.get(("env/env_obs", t))
-        mean = self.model(input)
+        obs = self.get(("env/env_obs", t))
+        mean = self.model(obs)
         dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
         self.set(("entropy", t), dist.entropy())
         if stochastic:
@@ -73,14 +75,19 @@ class ContinuousActionTunableVarianceAgent(Agent):
 class ContinuousActionStateDependentVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
-        self.model = mlp([state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU, output_activation=nn.Tanh)
-        self.std_param = nn.parameter.Parameter(torch.randn(action_dim, 1))  # TODO: replace this so as to depend on the state
-        self.soft_plus = torch.nn.Softplus()
+        backbone_dim = [state_dim] + list(hidden_layers)
+        self.layers = build_backbone(backbone_dim, activation=nn.ReLU)
+        self.last_layer = nn.Linear(hidden_layers[-1], action_dim)
+        self.mean_layer = nn.Tanh()
+        # std must be positive
+        self.std_layer = nn.Softplus()
+        self.backbone = nn.Sequential(*self.layers)
 
     def forward(self, t, stochastic, **kwargs):
-        input = self.get(("env/env_obs", t))
-        mean = self.model(input)
-        dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
+        obs = self.get(("env/env_obs", t))
+        backbone_output = self.backbone(obs)
+        mean = self.mean_layer(backbone_output)
+        dist = Normal(mean, self.std_layer(backbone_output))
         self.set(("entropy", t), dist.entropy())
         if stochastic:
             action = torch.tanh(dist.sample())  # valid actions are supposed to be in [-1,1] range
@@ -94,13 +101,14 @@ class ContinuousActionStateDependentVarianceAgent(Agent):
 class ContinuousActionConstantVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
-        self.model = mlp([state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU, output_activation=nn.Tanh)
+        layers = [state_dim] + list(hidden_layers) + [action_dim]
+        self.model = build_mlp(layers, activation=nn.ReLU, output_activation=nn.Tanh)
         self.std_param = 2
         self.soft_plus = torch.nn.Softplus()
 
     def forward(self, t, stochastic, **kwargs):
-        input = self.get(("env/env_obs", t))
-        mean = self.model(input)
+        obs = self.get(("env/env_obs", t))
+        mean = self.model(obs)
         dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
         self.set(("entropy", t), dist.entropy())
         if stochastic:
