@@ -29,7 +29,8 @@ from my_salina_examples.chrono import Chrono
 def create_a2c_agent(cfg, env_agent):
     observation_size, action_dim = env_agent.get_obs_and_actions_sizes()
     # print(observation_size, n_actions)
-    action_agent = ContinuousActionStateDependentVarianceAgent(observation_size, cfg.algorithm.architecture.hidden_size, action_dim)
+    # action_agent = ContinuousActionStateDependentVarianceAgent(observation_size, cfg.algorithm.architecture.hidden_size, action_dim)
+    action_agent = ContinuousActionTunableVarianceAgent(observation_size, cfg.algorithm.architecture.hidden_size, action_dim)
     critic_agent = VAgent(observation_size, cfg.algorithm.architecture.hidden_size)
 
     # Combine env and policy agents

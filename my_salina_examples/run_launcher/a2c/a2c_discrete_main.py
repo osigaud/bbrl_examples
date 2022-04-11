@@ -164,9 +164,9 @@ params = {
                "every_n_seconds": 10},
     "algorithm": {
         "seed": 4,
-        "n_envs": 1,
+        "n_envs": 8,
         "n_timesteps": 200,
-        "max_epochs": 10000,
+        "max_epochs": 1000,
         "discount_factor": 0.95,
         "entropy_coef": 0.001,
         "critic_coef": 1.0,
@@ -180,7 +180,7 @@ params = {
 }
 
 if __name__ == "__main__":
-    # with autograd.detect_anomaly():
+     # with autograd.detect_anomaly():
         sys.path.append(os.getcwd())
         config = OmegaConf.create(params)
         run_a2c(config)
