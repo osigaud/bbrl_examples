@@ -10,7 +10,7 @@ class DeterministicAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
-        self.model = build_mlp(layers, activation=nn.ReLU, output_activation=nn.Tanh)
+        self.model = build_mlp(layers, activation=nn.ReLU(), output_activation=nn.Tanh())
 
     def forward(self, t, epsilon=0, **kwargs):
         obs = self.get(("env/env_obs", t))
@@ -25,7 +25,7 @@ class DeterministicAgent(Agent):
 class ProbAgent(Agent):
     def __init__(self, state_dim, hidden_layers, n_action, **kwargs):
         super().__init__(name="prob_agent")
-        self.model = build_mlp([state_dim] + list(hidden_layers) + [n_action], activation=nn.ReLU)
+        self.model = build_mlp([state_dim] + list(hidden_layers) + [n_action], activation=nn.ReLU())
 
     def forward(self, t, **kwargs):
         observation = self.get(("env/env_obs", t))
@@ -58,7 +58,7 @@ class ContinuousActionTunableVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
-        self.model = build_mlp(layers, activation=nn.ReLU, output_activation=nn.Tanh)
+        self.model = build_mlp(layers, activation=nn.ReLU(), output_activation=nn.Tanh())
         self.std_param = nn.parameter.Parameter(torch.randn(action_dim, 1))
         self.soft_plus = torch.nn.Softplus()
 
@@ -80,7 +80,7 @@ class ContinuousActionStateDependentVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
-        self.layers = build_backbone(backbone_dim, activation=nn.ReLU)
+        self.layers = build_backbone(backbone_dim, activation=nn.ReLU())
         self.last_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.mean_layer = nn.Tanh()
         # std must be positive
@@ -108,12 +108,11 @@ class ContinuousActionConstantVarianceAgent(Agent):
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(layers, activation=nn.ReLU, output_activation=nn.Tanh)
         self.std_param = 2
-        self.soft_plus = torch.nn.Softplus()
 
     def forward(self, t, stochastic, **kwargs):
         obs = self.get(("env/env_obs", t))
         mean = self.model(obs)
-        dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
+        dist = Normal(mean, self.std_param)  # std must be positive
         self.set(("entropy", t), dist.entropy())
         if stochastic:
             action = torch.tanh(dist.sample())  # valid actions are supposed to be in [-1,1] range

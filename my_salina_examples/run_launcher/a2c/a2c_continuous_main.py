@@ -19,17 +19,17 @@ import torch.nn as nn
 import torch.autograd as autograd
 from torch.autograd import detect_anomaly
 
-from my_salina_examples.models.salina_actors import ContinuousActionTunableVarianceAgent
+from my_salina_examples.models.salina_actors import ContinuousActionTunableVarianceAgent, ContinuousActionStateDependentVarianceAgent, ContinuousActionConstantVarianceAgent
 from my_salina_examples.models.salina_critics import VAgent
 from my_salina_examples.models.salina_envs import AutoResetEnvAgent
 from my_salina_examples.models.salina_loggers import Logger
-
+from my_salina_examples.chrono import Chrono
 
 # Create the A2C Agent
 def create_a2c_agent(cfg, env_agent):
     observation_size, action_dim = env_agent.get_obs_and_actions_sizes()
     # print(observation_size, n_actions)
-    action_agent = ContinuousActionTunableVarianceAgent(observation_size, cfg.algorithm.architecture.hidden_size, action_dim)
+    action_agent = ContinuousActionStateDependentVarianceAgent(observation_size, cfg.algorithm.architecture.hidden_size, action_dim)
     critic_agent = VAgent(observation_size, cfg.algorithm.architecture.hidden_size)
 
     # Combine env and policy agents
@@ -70,6 +70,7 @@ def compute_a2c_loss(action_logp, td):
 
 def run_a2c(cfg, max_grad_norm=0.5):
     # 1)  Build the  logger
+    chrono = Chrono()
     logger = Logger(cfg)
 
     # 2) Create the environment agent
@@ -140,7 +141,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
         if creward.size()[0] > 0:
             logger.add_log("reward", creward.mean(), epoch)
         print(f"epoch: {epoch}, reward: {creward.mean()}")
-
+    chrono.stop()
 
 params = {
     "logger": {"classname": "salina.logger.TFLogger",
@@ -150,9 +151,9 @@ params = {
                "every_n_seconds": 10},
     "algorithm": {
         "seed": 4,
-        "n_envs": 1,
+        "n_envs": 8,
         "n_timesteps": 200,
-        "max_epochs": 10000,
+        "max_epochs": 1000,
         "discount_factor": 0.95,
         "entropy_coef": 0.001,
         "critic_coef": 1.0,
