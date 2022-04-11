@@ -9,7 +9,7 @@ from my_salina_examples.models.salina_shared_models import build_mlp
 class QAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
-        self.model = build_mlp([state_dim + action_dim] + list(hidden_layers) + [1], activation=nn.ReLU)
+        self.model = build_mlp([state_dim + action_dim] + list(hidden_layers) + [1], activation=nn.ReLU())
 
     def forward(self, t, detach_actions=False, **kwargs):
         obs = self.get(("env/env_obs", t))
@@ -24,7 +24,7 @@ class QAgent(Agent):
 class VAgent(Agent):
     def __init__(self, state_dim, hidden_layers, **kwargs):
         super().__init__()
-        self.model = build_mlp([state_dim] + list(hidden_layers) + [1], activation=nn.ReLU)
+        self.model = build_mlp([state_dim] + list(hidden_layers) + [1], activation=nn.ReLU())
 
     def forward(self, t, **kwargs):
         observation = self.get(("env/env_obs", t))
@@ -35,7 +35,7 @@ class VAgent(Agent):
 class ContinuousCriticAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
-        self.model = build_mlp([state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU, output_activation=nn.Tanh)
+        self.model = build_mlp([state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU(), output_activation=nn.Tanh())
 
         """
         TODO: how to specify the architecture correctly?
