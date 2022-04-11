@@ -163,10 +163,10 @@ params = {
                # "cache_size": 10000,
                "every_n_seconds": 10},
     "algorithm": {
-        "seed": 432,
-        "n_envs": 8,
+        "seed": 4,
+        "n_envs": 1,
         "n_timesteps": 200,
-        "max_epochs": 1000,
+        "max_epochs": 10000,
         "discount_factor": 0.95,
         "entropy_coef": 0.001,
         "critic_coef": 1.0,
