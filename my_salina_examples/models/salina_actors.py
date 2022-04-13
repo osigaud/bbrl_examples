@@ -29,6 +29,7 @@ class ProbAgent(Agent):
 
     def forward(self, t, **kwargs):
         observation = self.get(("env/env_obs", t))
+        print(observation)
         scores = self.model(observation)
         action_probs = torch.softmax(scores, dim=-1)
         if torch.any(torch.isnan(action_probs)):

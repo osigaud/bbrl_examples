@@ -87,6 +87,12 @@ class NoAutoResetEnvAgent(NoAutoResetGymAgent):
         self.action_space = env.action_space
         del env
 
+    def is_continuous_action(self):
+        return isinstance(self.action_space, gym.spaces.Box)
+
+    def is_discrete_action(self):
+        return isinstance(self.action_space, gym.spaces.Discrete)
+
     def is_continuous_state(self):
         return isinstance(self.observation_space, gym.spaces.Box)
 

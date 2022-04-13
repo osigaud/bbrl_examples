@@ -49,6 +49,7 @@ def _index(tensor_3d, tensor_2d):
 def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
     action_agent = None
     param_agent = None
+
     if train_env_agent.is_continuous_action():
         observation_size, action_dim = train_env_agent.get_obs_and_actions_sizes()
         action_agent = ContinuousActionTunableVarianceAgent(observation_size, cfg.algorithm.architecture.hidden_size, action_dim)
@@ -57,6 +58,7 @@ def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
         ev_agent = Agents(eval_env_agent, action_agent)
     else:
         observation_size, n_actions = train_env_agent.get_obs_and_actions_sizes()
+        print(observation_size, n_actions, train_env_agent.is_continuous_state())
         param_agent = ProbAgent(observation_size, cfg.algorithm.architecture.hidden_size, n_actions)
         action_agent = ActionAgent()
         tr_agent = Agents(train_env_agent, param_agent, action_agent)
@@ -125,7 +127,6 @@ def run_a2c(cfg, max_grad_norm=0.5):
     # In the training loop, calling the agent() and critic_agent()
     # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
-
 
     # 6) Configure the optimizer over the a2c agent
     optimizer = setup_optimizers(cfg, param_agent, critic_agent)
@@ -208,7 +209,7 @@ params = {
         "architecture": {"hidden_size": [25, 25]},
     },
     "gym_env": {"classname": "__main__.make_gym_env",
-                "env_name": "LineMDPContinuous-v0",
+                "env_name": "CartPoleContinuous-v0",
                 "max_episode_steps": 500},
     "optimizer": {"classname": "torch.optim.Adam",
                   "lr": 0.01},
