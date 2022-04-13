@@ -172,12 +172,12 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
-            a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps+1, stochastic=True)
+            a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps+1, stochastic=False)
             creward = eval_workspace["env/cumulated_reward"]
             done = eval_workspace["env/done"]
             creward = creward[done]
             for i in range(cfg.algorithm.nb_evals-1):
-                a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps+1, stochastic=True)
+                a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps+1, stochastic=False)
                 cr = eval_workspace["env/cumulated_reward"]
                 done = eval_workspace["env/done"]
                 cr = cr[done]
@@ -203,7 +203,7 @@ params = {
         "n_envs": 8,
         "n_steps": 200,
         "eval_interval": 2000,
-        "nb_evals": 5,
+        "nb_evals": 1,
         "max_epochs": 1000,
         "discount_factor": 0.95,
         "entropy_coef": 0.001,
