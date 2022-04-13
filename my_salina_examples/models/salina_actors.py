@@ -51,6 +51,7 @@ class ActionAgent(Agent):
 
         self.set(("action", t), action)
 
+
 # All the actors below use a squashed Gaussian policy, that is the output is the tanh of a Normal distribution
 
 
@@ -106,7 +107,7 @@ class ContinuousActionConstantVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
-        self.model = build_mlp(layers, activation=nn.ReLU, output_activation=nn.Tanh)
+        self.model = build_mlp(layers, activation=nn.ReLU(), output_activation=nn.Tanh())
         self.std_param = 2
 
     def forward(self, t, stochastic, **kwargs):

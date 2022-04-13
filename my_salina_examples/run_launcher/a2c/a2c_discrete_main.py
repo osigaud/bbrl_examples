@@ -65,6 +65,11 @@ def setup_optimizers(cfg, prob_agent, critic_agent):
     return optimizer
 
 
+def compute_actor_loss_discrete(action_probs, action, td):
+    action_logp = _index(action_probs, action).log()
+    a2c_loss = action_logp[:-1] * td.detach()
+    return a2c_loss.mean()
+
 def compute_critic_loss(cfg, reward, done, critic):
     # Compute temporal difference
     target = reward[1:] + cfg.algorithm.discount_factor * critic[1:].detach() * (1 - done[1:].float())
@@ -74,12 +79,6 @@ def compute_critic_loss(cfg, reward, done, critic):
     td_error = td ** 2
     critic_loss = td_error.mean()
     return critic_loss, td
-
-
-def compute_a2c_loss(action_probs, action, td):
-    action_logp = _index(action_probs, action).log()
-    a2c_loss = action_logp[:-1] * td.detach()
-    return a2c_loss.mean()
 
 
 def run_a2c(cfg, max_grad_norm=0.5):
@@ -130,7 +129,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
         entropy_loss = torch.mean(workspace['entropy'])
 
         # Compute A2C loss
-        a2c_loss = compute_a2c_loss(action_probs, action, td)
+        a2c_loss = compute_actor_loss_discrete(action_probs, action, td)
         # print(a2c_loss.mean())
 
         # Store the losses for tensorboard display
