@@ -8,8 +8,8 @@ from salina.agents.gyma import AutoResetGymAgent, NoAutoResetGymAgent, GymAgent
 class EnvAgent(GymAgent):
     # Create the environment agent
     # This agent should not be used?
-    def __init__(self, cfg):
-        super().__init__(get_class(cfg.gym_env), get_arguments(cfg.gym_env), n_envs=cfg.algorithm.n_envs)
+    def __init__(self, cfg, n_envs):
+        super().__init__(get_class(cfg.gym_env), get_arguments(cfg.gym_env), n_envs)
         env = instantiate_class(cfg.gym_env)
         self.observation_space = env.observation_space
         self.action_space = env.action_space
@@ -37,8 +37,8 @@ class EnvAgent(GymAgent):
 class AutoResetEnvAgent(AutoResetGymAgent):
     # Create the environment agent
     # This agent implements N gym environments with auto-reset
-    def __init__(self, cfg):
-        super().__init__(get_class(cfg.gym_env), get_arguments(cfg.gym_env), n_envs=cfg.algorithm.n_envs)
+    def __init__(self, cfg, n_envs):
+        super().__init__(get_class(cfg.gym_env), get_arguments(cfg.gym_env), n_envs)
         env = instantiate_class(cfg.gym_env)
         self.observation_space = env.observation_space
         self.action_space = env.action_space
@@ -66,8 +66,8 @@ class AutoResetEnvAgent(AutoResetGymAgent):
 class NoAutoResetEnvAgent(NoAutoResetGymAgent):
     # Create the environment agent
     # This agent implements N gym environments without auto-reset
-    def __init__(self, cfg):
-        super().__init__(get_class(cfg.gym_env), get_arguments(cfg.gym_env), n_envs=cfg.algorithm.n_envs)
+    def __init__(self, cfg, n_envs):
+        super().__init__(get_class(cfg.gym_env), get_arguments(cfg.gym_env), n_envs)
         env = instantiate_class(cfg.gym_env)
         self.observation_space = env.observation_space
         self.action_space = env.action_space

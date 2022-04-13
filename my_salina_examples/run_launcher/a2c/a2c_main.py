@@ -105,10 +105,10 @@ def run_a2c(cfg, max_grad_norm=0.5):
     logger = Logger(cfg)
 
     # 2) Create the environment agent
-    env_agent = AutoResetEnvAgent(cfg)
+    train_env_agent = AutoResetEnvAgent(cfg, n_envs=cfg.algorithm.n_envs)
 
     # 3) Create the A2C Agent
-    a2c_agent, param_agent, critic_agent = create_a2c_agent(cfg, env_agent)
+    a2c_agent, param_agent, critic_agent = create_a2c_agent(cfg, train_env_agent)
 
     # 4) Create the temporal critic agent to compute critic values over the workspace
     tcritic_agent = TemporalAgent(critic_agent)
@@ -118,6 +118,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
     # In the training loop, calling the agent() and critic_agent()
     # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
+    eval_workspace = Workspace()  # Used for evaluation
 
     # 6) Configure the optimizer over the a2c agent
     optimizer = setup_optimizers(cfg, param_agent, critic_agent)
@@ -139,7 +140,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
         nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         critic, done, reward, action = train_workspace["critic", "env/done", "env/reward", "action"]
-        if env_agent.is_continuous_action():
+        if train_env_agent.is_continuous_action():
             # Get relevant tensors (size are timestep x n_envs x ....)
             action_logp = train_workspace["action_logprobs"]
             # Compute critic loss
@@ -169,25 +170,25 @@ def run_a2c(cfg, max_grad_norm=0.5):
         torch.nn.utils.clip_grad_norm_(param_agent.parameters(), max_grad_norm)
         optimizer.step()
 
-        crewards = np.zeros(cfg.algorithm.nb_evals)
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
-            print("started to eval")
             tmp_steps = nb_steps
-            for i in range(cfg.algorithm.nb_evals):
-                eval_workspace = Workspace()  # Used for evaluation
-                print(i)
-                a2c_agent(eval_workspace, t=0, stop_variable="env/done", stochastic=True)
-                creward = eval_workspace["env/cumulated_reward"]
-                creward = creward[done]
-                if creward.size()[0] == 0:
-                    print(f"epoch: {epoch}, no done")
-                    crewards[i] = 0
-                else:
-                    crewards[i] = creward
-            logger.add_log("reward", creward.mean(), nb_steps)
-            print(f"epoch: {epoch}, reward: {creward.mean()}")
-
-
+            a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps, stochastic=True)
+            creward = eval_workspace["env/cumulated_reward"]
+            done = eval_workspace["env/done"]
+            creward = creward[done]
+            for i in range(cfg.algorithm.nb_evals-1):
+                a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps, stochastic=True)
+                cr = eval_workspace["env/cumulated_reward"]
+                done = eval_workspace["env/done"]
+                cr = cr[done]
+                creward = torch.cat((creward, cr), 0)
+            # print(creward)
+            mean = np.array(creward).mean()
+            if len(creward) == 0:
+                print(f"epoch: {epoch}, no done")
+            else:
+                logger.add_log("reward", mean, nb_steps)
+                print(f"epoch: {epoch}, reward: {mean }")
     chrono.stop()
 
 
@@ -200,8 +201,8 @@ params = {
     "algorithm": {
         "seed": 5,
         "n_envs": 8,
-        "n_steps": 5,
-        "eval_interval": 200,
+        "n_steps": 200,
+        "eval_interval": 2000,
         "nb_evals": 5,
         "max_epochs": 1000,
         "discount_factor": 0.95,
