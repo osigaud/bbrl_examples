@@ -21,17 +21,24 @@ class EnvAgent(GymAgent):
     def is_discrete_action(self):
         return isinstance(self.action_space, gym.spaces.Discrete)
 
+    def is_continuous_state(self):
+        return isinstance(self.observation_space, gym.spaces.Box)
+
+    def is_discrete_state(self):
+        return isinstance(self.observation_space, gym.spaces.Discrete)
+
     def get_obs_and_actions_sizes(self):
+        action_dim = 0
+        state_dim = 0
         if self.is_continuous_action():
-            # Return the size of the observation and action spaces of the environment
-            # In the case of a continuous action environment
-            return self.observation_space.shape[0], self.action_space.shape[0]
+            action_dim = self.action_space.shape[0]
         elif self.is_discrete_action():
-            # Return the size of the observation and action spaces of the environment
-            return self.observation_space.shape[0], self.action_space.n
-        else:
-            print("unknown type of action space", self.action_space)
-            return None
+            action_dim = self.action_space.n
+        if self.is_continuous_state():
+            state_dim = self.observation_space.shape[0]
+        elif self.is_discrete_state():
+            state_dim = self.observation_space.n
+        return state_dim, action_dim
 
 
 class AutoResetEnvAgent(AutoResetGymAgent):
@@ -50,17 +57,24 @@ class AutoResetEnvAgent(AutoResetGymAgent):
     def is_discrete_action(self):
         return isinstance(self.action_space, gym.spaces.Discrete)
 
+    def is_continuous_state(self):
+        return isinstance(self.observation_space, gym.spaces.Box)
+
+    def is_discrete_state(self):
+        return isinstance(self.observation_space, gym.spaces.Discrete)
+
     def get_obs_and_actions_sizes(self):
-        if isinstance(self.action_space, gym.spaces.Box):
-            # Return the size of the observation and action spaces of the environment
-            # In the case of a continuous action environment
-            return self.observation_space.shape[0], self.action_space.shape[0]
-        elif isinstance(self.action_space, gym.spaces.Discrete):
-            # Return the size of the observation and action spaces of the environment
-            return self.observation_space.shape[0], self.action_space.n
-        else:
-            print("unknown type of action space", self.action_space)
-            return None
+        action_dim = 0
+        state_dim = 0
+        if self.is_continuous_action():
+            action_dim = self.action_space.shape[0]
+        elif self.is_discrete_action():
+            action_dim = self.action_space.n
+        if self.is_continuous_state():
+            state_dim = self.observation_space.shape[0]
+        elif self.is_discrete_state():
+            state_dim = self.observation_space.n
+        return state_dim, action_dim
 
 
 class NoAutoResetEnvAgent(NoAutoResetGymAgent):
@@ -73,20 +87,21 @@ class NoAutoResetEnvAgent(NoAutoResetGymAgent):
         self.action_space = env.action_space
         del env
 
-    def is_continuous_action(self):
-        return isinstance(self.action_space, gym.spaces.Box)
+    def is_continuous_state(self):
+        return isinstance(self.observation_space, gym.spaces.Box)
 
-    def is_discrete_action(self):
-        return isinstance(self.action_space, gym.spaces.Discrete)
+    def is_discrete_state(self):
+        return isinstance(self.observation_space, gym.spaces.Discrete)
 
     def get_obs_and_actions_sizes(self):
-        if isinstance(self.action_space, gym.spaces.Box):
-            # Return the size of the observation and action spaces of the environment
-            # In the case of a continuous action environment
-            return self.observation_space.shape[0], self.action_space.shape[0]
-        elif isinstance(self.action_space, gym.spaces.Discrete):
-            # Return the size of the observation and action spaces of the environment
-            return self.observation_space.shape[0], self.action_space.n
-        else:
-            print("unknown type of action space", self.action_space)
-            return None
+        action_dim = 0
+        state_dim = 0
+        if self.is_continuous_action():
+            action_dim = self.action_space.shape[0]
+        elif self.is_discrete_action():
+            action_dim = self.action_space.n
+        if self.is_continuous_state():
+            state_dim = self.observation_space.shape[0]
+        elif self.is_discrete_state():
+            state_dim = self.observation_space.n
+        return state_dim, action_dim
