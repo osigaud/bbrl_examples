@@ -25,7 +25,7 @@ from my_salina_examples.models.salina_actors import ContinuousActionStateDepende
 from my_salina_examples.models.salina_actors import ContinuousActionConstantVarianceAgent
 from my_salina_examples.models.salina_actors import DeterministicAgent, ProbAgent, ActionAgent
 from my_salina_examples.models.salina_critics import VAgent
-from my_salina_examples.models.salina_envs import AutoResetEnvAgent
+from my_salina_examples.models.salina_envs import AutoResetEnvAgent, NoAutoResetEnvAgent
 from my_salina_examples.models.salina_loggers import Logger
 from my_salina_examples.chrono import Chrono
 
@@ -43,26 +43,29 @@ def _index(tensor_3d, tensor_2d):
 
 
 # Create the A2C Agent
-def create_a2c_agent(cfg, env_agent):
+def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
     action_agent = None
     param_agent = None
-    if env_agent.is_continuous_action():
-        observation_size, action_dim = env_agent.get_obs_and_actions_sizes()
+    if train_env_agent.is_continuous_action():
+        observation_size, action_dim = train_env_agent.get_obs_and_actions_sizes()
         action_agent = ContinuousActionTunableVarianceAgent(observation_size, cfg.algorithm.architecture.hidden_size, action_dim)
         param_agent = action_agent
-        agent = Agents(env_agent, action_agent)
+        tr_agent = Agents(train_env_agent, action_agent)
+        ev_agent = Agents(eval_env_agent, action_agent)
     else:
-        observation_size, n_actions = env_agent.get_obs_and_actions_sizes()
+        observation_size, n_actions = train_env_agent.get_obs_and_actions_sizes()
         param_agent = ProbAgent(observation_size, cfg.algorithm.architecture.hidden_size, n_actions)
         action_agent = ActionAgent()
-        agent = Agents(env_agent, param_agent, action_agent)
+        tr_agent = Agents(train_env_agent, param_agent, action_agent)
+        ev_agent = Agents(eval_env_agent, param_agent, action_agent)
 
     critic_agent = VAgent(observation_size, cfg.algorithm.architecture.hidden_size)
 
     # Get an agent that is executed on a complete workspace
-    agent = TemporalAgent(agent)
-    agent.seed(cfg.algorithm.seed)
-    return agent, param_agent, critic_agent
+    train_agent = TemporalAgent(tr_agent)
+    eval_agent = TemporalAgent(ev_agent)
+    train_agent.seed(cfg.algorithm.seed)
+    return train_agent, eval_agent, param_agent, critic_agent
 
 
 def make_gym_env(max_episode_steps, env_name):
@@ -106,9 +109,10 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
     # 2) Create the environment agent
     train_env_agent = AutoResetEnvAgent(cfg, n_envs=cfg.algorithm.n_envs)
+    eval_env_agent = NoAutoResetEnvAgent(cfg, n_envs=cfg.algorithm.nb_evals)
 
     # 3) Create the A2C Agent
-    a2c_agent, param_agent, critic_agent = create_a2c_agent(cfg, train_env_agent)
+    a2c_agent, eval_agent, param_agent, critic_agent = create_a2c_agent(cfg, train_env_agent, eval_env_agent)
 
     # 4) Create the temporal critic agent to compute critic values over the workspace
     tcritic_agent = TemporalAgent(critic_agent)
@@ -118,7 +122,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
     # In the training loop, calling the agent() and critic_agent()
     # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
-    eval_workspace = Workspace()  # Used for evaluation
+
 
     # 6) Configure the optimizer over the a2c agent
     optimizer = setup_optimizers(cfg, param_agent, critic_agent)
@@ -172,23 +176,12 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
-            a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps+1, stochastic=False)
-            creward = eval_workspace["env/cumulated_reward"]
-            done = eval_workspace["env/done"]
-            creward = creward[done]
-            for i in range(cfg.algorithm.nb_evals-1):
-                a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps+1, stochastic=False)
-                cr = eval_workspace["env/cumulated_reward"]
-                done = eval_workspace["env/done"]
-                cr = cr[done]
-                creward = torch.cat((creward, cr), 0)
-            # print(creward)
-            mean = np.array(creward).mean()
-            if len(creward) == 0:
-                print(f"epoch: {epoch}, no done")
-            else:
-                logger.add_log("reward", mean, nb_steps)
-                print(f"epoch: {epoch}, reward: {mean }")
+            eval_workspace = Workspace()  # Used for evaluation
+            eval_agent(eval_workspace, t=0, stop_variable="env/done", stochastic=False)
+            rewards = eval_workspace["env/cumulated_reward"][-1]
+            mean = rewards.mean()
+            logger.add_log("reward", mean, nb_steps)
+            print(f"epoch: {epoch}, reward: {mean }")
     chrono.stop()
 
 
