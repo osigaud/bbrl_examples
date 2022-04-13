@@ -172,12 +172,12 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
-            a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps, stochastic=True)
+            a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps+1, stochastic=True)
             creward = eval_workspace["env/cumulated_reward"]
             done = eval_workspace["env/done"]
             creward = creward[done]
             for i in range(cfg.algorithm.nb_evals-1):
-                a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps, stochastic=True)
+                a2c_agent(eval_workspace, t=0, n_steps=cfg.gym_env.max_episode_steps+1, stochastic=True)
                 cr = eval_workspace["env/cumulated_reward"]
                 done = eval_workspace["env/done"]
                 cr = cr[done]
