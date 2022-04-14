@@ -5,8 +5,8 @@ import numpy as np
 import gym
 import my_gym
 
-# from gym import envs
-# print(envs.registry.all())
+from gym import envs
+print(envs.registry.all())
 
 from gym.wrappers import TimeLimit
 from omegaconf import DictConfig, OmegaConf
@@ -58,7 +58,7 @@ def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
         ev_agent = Agents(eval_env_agent, action_agent)
     else:
         observation_size, n_actions = train_env_agent.get_obs_and_actions_sizes()
-        print(observation_size, n_actions, train_env_agent.is_continuous_state())
+        # print(observation_size, n_actions, train_env_agent.is_continuous_state())
         param_agent = ProbAgent(observation_size, cfg.algorithm.architecture.hidden_size, n_actions)
         action_agent = ActionAgent()
         tr_agent = Agents(train_env_agent, param_agent, action_agent)
@@ -209,7 +209,7 @@ params = {
         "architecture": {"hidden_size": [25, 25]},
     },
     "gym_env": {"classname": "__main__.make_gym_env",
-                "env_name": "CartPoleContinuous-v0",
+                "env_name": "2DMDPContinuous-v0",
                 "max_episode_steps": 500},
     "optimizer": {"classname": "torch.optim.Adam",
                   "lr": 0.01},
