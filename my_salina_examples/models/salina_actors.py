@@ -29,7 +29,7 @@ class ProbAgent(Agent):
 
     def forward(self, t, **kwargs):
         observation = self.get(("env/env_obs", t))
-        print(observation)
+        # print(observation)
         scores = self.model(observation)
         action_probs = torch.softmax(scores, dim=-1)
         if torch.any(torch.isnan(action_probs)):
@@ -60,7 +60,7 @@ class ContinuousActionTunableVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
-        self.model = build_mlp(layers, activation=nn.ReLU(), output_activation=nn.Tanh())
+        self.model = build_mlp(layers, activation=nn.ReLU())
         self.std_param = nn.parameter.Parameter(torch.randn(action_dim, 1))
         self.soft_plus = torch.nn.Softplus()
 
@@ -108,7 +108,7 @@ class ContinuousActionConstantVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
-        self.model = build_mlp(layers, activation=nn.ReLU(), output_activation=nn.Tanh())
+        self.model = build_mlp(layers, activation=nn.ReLU())
         self.std_param = 2
 
     def forward(self, t, stochastic, **kwargs):

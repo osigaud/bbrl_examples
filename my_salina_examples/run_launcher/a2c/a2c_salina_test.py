@@ -5,8 +5,8 @@ import numpy as np
 import gym
 import my_gym
 
-from gym import envs
-print(envs.registry.all())
+# from gym import envs
+# print(envs.registry.all())
 
 from gym.wrappers import TimeLimit
 from omegaconf import DictConfig, OmegaConf
@@ -209,7 +209,7 @@ params = {
         "architecture": {"hidden_size": [25, 25]},
     },
     "gym_env": {"classname": "__main__.make_gym_env",
-                "env_name": "2DMDPContinuous-v0",
+                "env_name": "CartPoleContinuous-v1",
                 "max_episode_steps": 500},
     "optimizer": {"classname": "torch.optim.Adam",
                   "lr": 0.01},
