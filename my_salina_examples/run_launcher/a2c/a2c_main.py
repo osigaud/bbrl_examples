@@ -191,7 +191,7 @@ params = {
                # "cache_size": 10000,
                "every_n_seconds": 10},
     "algorithm": {
-        "seed": 5,
+        "seed": 2,
         "n_envs": 8,
         "n_steps": 200,
         "eval_interval": 2000,

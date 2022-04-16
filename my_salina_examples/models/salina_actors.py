@@ -59,7 +59,9 @@ class ContinuousActionTunableVarianceAgent(GenericAgent):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(layers, activation=nn.ReLU())
-        self.std_param = nn.parameter.Parameter(torch.randn(action_dim, 1))
+        init_variance = torch.randn(action_dim, 1)
+        # print("init_variance:", init_variance)
+        self.std_param = nn.parameter.Parameter(init_variance)
         self.soft_plus = torch.nn.Softplus()
 
     def forward(self, t, stochastic, **kwargs):
