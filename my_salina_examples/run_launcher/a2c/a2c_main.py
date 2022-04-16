@@ -123,7 +123,6 @@ def run_a2c(cfg, max_grad_norm=0.5):
     # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
 
-
     # 6) Configure the optimizer over the a2c agent
     optimizer = setup_optimizers(cfg, param_agent, critic_agent)
     nb_steps = 0

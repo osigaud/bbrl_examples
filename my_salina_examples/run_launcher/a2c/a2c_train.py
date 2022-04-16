@@ -111,6 +111,10 @@ def run_a2c(cfg, max_grad_norm=0.5):
     # 1)  Build the  logger
     chrono = Chrono()
     logger = Logger(cfg)
+    best_reward = -10e9
+    if not os.path.exists("data/policies"):
+        os.mkdir("./data")
+        os.mkdir("./data/policies")
 
     # 2) Create the environment agent
     train_env_agent = AutoResetEnvAgent(cfg, n_envs=cfg.algorithm.n_envs)
@@ -186,6 +190,11 @@ def run_a2c(cfg, max_grad_norm=0.5):
             mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)
             print(f"epoch: {epoch}, reward: {mean }")
+            if mean > best_reward:
+                best_reward = mean
+                filename = "./data/policies/a2c" + str(mean.item()) + ".agt"
+                torch.save(eval_agent, filename)
+                # a2c_agent.agent.agents[1].save_model(filename)
     chrono.stop()
 
 
@@ -201,7 +210,7 @@ params = {
         "n_steps": 200,
         "eval_interval": 2000,
         "nb_evals": 1,
-        "max_epochs": 1000,
+        "max_epochs": 100,
         "discount_factor": 0.95,
         "entropy_coef": 0.001,
         "critic_coef": 1.0,

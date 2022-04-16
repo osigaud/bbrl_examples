@@ -1,4 +1,12 @@
+import torch
 import torch.nn as nn
+from salina import Agent
+
+def build_backbone(sizes, activation):
+    layers = []
+    for j in range(len(sizes) - 2):
+        layers += [nn.Linear(sizes[j], sizes[j + 1]), activation]
+    return layers
 
 
 def build_mlp(sizes, activation, output_activation=nn.Identity()):
@@ -6,12 +14,46 @@ def build_mlp(sizes, activation, output_activation=nn.Identity()):
     for j in range(len(sizes) - 1):
         act = activation if j < len(sizes) - 2 else output_activation
         layers += [nn.Linear(sizes[j], sizes[j + 1]), act]
-    m = nn.Sequential(*layers)
-    return m
+    return nn.Sequential(*layers)
 
 
-def build_backbone(sizes, activation):
-    layers = []
-    for j in range(len(sizes) - 2):
-        layers += [nn.Linear(sizes[j], sizes[j + 1]), activation]
-    return layers
+class GenericAgent(Agent):
+    """
+    The super class of all policy and critic networks
+    Contains general behaviors like loading and saving, and updating from a loss
+    The stardnard loss function used is the Mean Squared Error (MSE)
+    """
+    def __init__(self, name="Agent"):
+        super(GenericAgent, self).__init__(name)
+        self.loss_func = torch.nn.MSELoss()
+
+    def save_model(self, filename) -> None:
+        """
+        Save a neural network model into a file
+        :param filename: the filename, including the path
+        :return: nothing
+        """
+        torch.save(self, filename)
+
+    def load_model(self, filename):
+        """
+        Load a neural network model from a file
+        :param filename: the filename, including the path
+        :return: the resulting pytorch network
+        """
+        net = torch.load(filename)
+        net.eval()
+        return net
+
+    def update(self, loss) -> None:
+        """
+        Apply a loss to a network using gradient backpropagation
+        :param loss: the applied loss
+        :return: nothing
+        """
+        self.optimizer.zero_grad()
+        loss.sum().backward()
+        self.optimizer.step()
+
+
+
