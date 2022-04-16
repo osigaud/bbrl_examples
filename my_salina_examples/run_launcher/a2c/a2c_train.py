@@ -58,7 +58,6 @@ def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
         ev_agent = Agents(eval_env_agent, action_agent)
     else:
         observation_size, n_actions = train_env_agent.get_obs_and_actions_sizes()
-        # print(observation_size, n_actions, train_env_agent.is_continuous_state())
         param_agent = ProbAgent(observation_size, cfg.algorithm.architecture.hidden_size, n_actions)
         action_agent = ActionAgent()
         tr_agent = Agents(train_env_agent, param_agent, action_agent)
@@ -193,7 +192,8 @@ def run_a2c(cfg, max_grad_norm=0.5):
             if mean > best_reward:
                 best_reward = mean
                 filename = "./data/policies/a2c" + str(mean.item()) + ".agt"
-                torch.save(eval_agent, filename)
+                eval_agent.save_model(filename)
+                # torch.save(eval_agent, filename)
                 # a2c_agent.agent.agents[1].save_model(filename)
     chrono.stop()
 
@@ -205,7 +205,7 @@ params = {
                # "cache_size": 10000,
                "every_n_seconds": 10},
     "algorithm": {
-        "seed": 4,
+        "seed": 6,
         "n_envs": 8,
         "n_steps": 200,
         "eval_interval": 2000,
@@ -218,7 +218,7 @@ params = {
         "architecture": {"hidden_size": [25, 25]},
     },
     "gym_env": {"classname": "__main__.make_gym_env",
-                "env_name": "CartPoleContinuous-v1",
+                "env_name": "CartPoleContinuous-v0",
                 "max_episode_steps": 500},
     "optimizer": {"classname": "torch.optim.Adam",
                   "lr": 0.01},
