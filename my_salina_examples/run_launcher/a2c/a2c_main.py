@@ -214,4 +214,5 @@ if __name__ == "__main__":
     # with autograd.detect_anomaly():
     sys.path.append(os.getcwd())
     config = OmegaConf.create(params)
+    torch.manual_seed(config.algorithm.seed)
     run_a2c(config)
