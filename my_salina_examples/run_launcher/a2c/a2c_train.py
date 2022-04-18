@@ -167,7 +167,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
         entropy_loss = torch.mean(train_workspace['entropy'])
 
         # Store the losses for tensorboard display
-        logger.log_losses(cfg, nb_steps, critic_loss, entropy_loss, a2c_loss)
+        logger.log_losses(nb_steps, critic_loss, entropy_loss, a2c_loss)
 
         # Compute the total loss
         loss = (

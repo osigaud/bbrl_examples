@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
 
-from my_salina_examples.models.salina_shared_models import build_mlp, build_backbone, GenericAgent
+from my_salina_examples.models.salina_shared_models import build_mlp, build_backbone
+from salina.agent import Agent
 
 
-class DeterministicAgent(GenericAgent):
+class DeterministicAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
@@ -21,7 +22,7 @@ class DeterministicAgent(GenericAgent):
         self.set(("action", t), action)
 
 
-class ProbAgent(GenericAgent):
+class ProbAgent(Agent):
     def __init__(self, state_dim, hidden_layers, n_action, **kwargs):
         super().__init__(name="prob_agent")
         self.model = build_mlp([state_dim] + list(hidden_layers) + [n_action], activation=nn.ReLU())
@@ -37,7 +38,7 @@ class ProbAgent(GenericAgent):
         self.set(("entropy", t), entropy)
 
 
-class ActionAgent(GenericAgent):
+class ActionAgent(Agent):
     def __init__(self, **kwargs):
         super().__init__()
 
@@ -54,7 +55,7 @@ class ActionAgent(GenericAgent):
 # All the actors below use a squashed Gaussian policy, that is the output is the tanh of a Normal distribution
 
 
-class ContinuousActionTunableVarianceAgent(GenericAgent):
+class ContinuousActionTunableVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
@@ -78,7 +79,7 @@ class ContinuousActionTunableVarianceAgent(GenericAgent):
         self.set(("action_logprobs", t), logp_pi)
 
 
-class ContinuousActionStateDependentVarianceAgent(GenericAgent):
+class ContinuousActionStateDependentVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
@@ -104,7 +105,7 @@ class ContinuousActionStateDependentVarianceAgent(GenericAgent):
         self.set(("action_logprobs", t), logp_pi)
 
 
-class ContinuousActionConstantVarianceAgent(GenericAgent):
+class ContinuousActionConstantVarianceAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]

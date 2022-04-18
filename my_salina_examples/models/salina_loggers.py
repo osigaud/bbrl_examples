@@ -9,7 +9,7 @@ class Logger:
         self.logger.add_scalar(log_string, loss.item(), epoch)
 
     # Log losses
-    def log_losses(self, cfg, epoch, critic_loss, entropy_loss, a2c_loss):
+    def log_losses(self, epoch, critic_loss, entropy_loss, a2c_loss):
         self.add_log("critic_loss", critic_loss, epoch)
         self.add_log("entropy_loss", entropy_loss, epoch)
         self.add_log("a2c_loss", a2c_loss, epoch)

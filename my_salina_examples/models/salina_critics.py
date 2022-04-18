@@ -31,7 +31,7 @@ class VAgent(Agent):
         critic = self.model(observation).squeeze(-1)
         self.set(("critic", t), critic)
 
-
+        
 class ContinuousCriticAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
