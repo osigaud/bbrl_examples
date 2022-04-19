@@ -177,7 +177,9 @@ def run_a2c(cfg, max_grad_norm=0.5):
             tmp_steps = nb_steps
             eval_workspace = Workspace()  # Used for evaluation
             eval_agent(eval_workspace, t=0, stop_variable="env/done", stochastic=False)
-            rewards = eval_workspace["env/cumulated_reward"][-1]
+            rewards, done = eval_workspace["env/cumulated_reward"], eval_workspace["env/done"]
+            tl = done.float().argmax(0)
+            rewards = rewards[tl, torch.arange(rewards.size()[1])]
             mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)
             print(f"epoch: {epoch}, reward: {mean }")
