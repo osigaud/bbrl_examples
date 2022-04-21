@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 import numpy as np
 
 import gym
@@ -186,7 +187,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
 params = {
     "logger": {"classname": "salina.logger.TFLogger",
-               "log_dir": "./tmp",
+               "log_dir": "./tmp/" + str(time.time()),
                "verbose": False,
                # "cache_size": 10000,
                "every_n_seconds": 10},
