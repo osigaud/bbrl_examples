@@ -6,9 +6,6 @@ import numpy as np
 import gym
 import my_gym
 
-# from gym import envs
-# print(envs.registry.all())
-
 from gym.wrappers import TimeLimit
 from omegaconf import DictConfig, OmegaConf
 from salina import instantiate_class, get_arguments, get_class, Workspace
@@ -21,8 +18,6 @@ import time
 
 import torch
 import torch.nn as nn
-import torch.autograd as autograd
-from torch.autograd import detect_anomaly
 
 from my_salina_examples.models.salina_actors import ContinuousActionTunableVarianceAgent
 from my_salina_examples.models.salina_actors import ContinuousActionStateDependentVarianceAgent
@@ -32,6 +27,8 @@ from my_salina_examples.models.salina_critics import VAgent
 from my_salina_examples.models.salina_envs import AutoResetEnvAgent, NoAutoResetEnvAgent
 from my_salina_examples.models.salina_loggers import Logger
 from my_salina_examples.chrono import Chrono
+
+from my_salina_examples.visu.visu_policies import plot_policy
 
 
 def _index(tensor_3d, tensor_2d):
@@ -111,9 +108,9 @@ def run_a2c(cfg, max_grad_norm=0.5):
     # 1)  Build the  logger
     chrono = Chrono()
     logger = Logger(cfg)
+    best_reward = -10e9
 
     if cfg.save_best:
-        best_reward = -10e9
         if not os.path.exists("data/policies"):
             os.mkdir("./data")
             os.mkdir("./data/policies")
@@ -196,7 +193,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
                 best_reward = mean
                 filename = "./data/policies/a2c" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
-
+                plot_policy(eval_agent, eval_env_agent, "CartPoleContinuous-v0", "./data/policies/")
     chrono.stop()
 
 

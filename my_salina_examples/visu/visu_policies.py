@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch as th
 
-from visu.common import final_show
+from my_salina_examples.visu.common import final_show
 
 def plot_policy(agent, env, env_name, directory, plot=False):
     if "cartpole" in env_name.lower():
@@ -47,9 +47,9 @@ def plot_pendulum_policy(
             obs = np.array([[np.cos(t), np.sin(t), td]])
             obs = th.from_numpy(obs.astype(np.float32))
 
-            value = agent.forward(-1, stochastic, observation=obs)
+            action = agent.forward(obs)
 
-            portrait[definition - (1 + index_td), index_t] = value.item()
+            portrait[definition - (1 + index_td), index_t] = action.item()
 
     plt.figure(figsize=(10, 10))
     plt.imshow(
@@ -106,9 +106,9 @@ def plot_cartpole_policy(
             obs = np.append(obs, y)
             obs = np.append(obs, z2)
             obs = th.from_numpy(obs.astype(np.float32))
-            value = agent.forward(-1, stochastic, observation=obs)
+            action = agent.forward(obs)
 
-            portrait[definition - (1 + index_y), index_x] = value.item()
+            portrait[definition - (1 + index_y), index_x] = action.item()
 
     plt.figure(figsize=(10, 10))
     plt.imshow(

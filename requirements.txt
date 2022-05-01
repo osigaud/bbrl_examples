@@ -6,3 +6,4 @@ gym==0.21.0
 setuptools~=60.2.0
 omegaconf~=2.1.1
 git+https://github.com/osigaud/my_gym.git
+matplotlib

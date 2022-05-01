@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from visu.common import final_show
+from my_salina_examples.visu.common import final_show
+
 
 def plot_histograms(
     rewards_list, labels, colors, title, directory, plot=True, save_figure=True

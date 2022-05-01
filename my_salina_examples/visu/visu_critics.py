@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch as th
 
-from visu.common import final_show
+from my_salina_examples.visu.common import final_show
 
 def plot_critic(agent, env, env_name, directory, plot=False):
     if "cartpole" in env_name.lower():
@@ -118,9 +118,9 @@ def plot_cartpole_critic(
         aspect="auto",
     )
 
-        directory += "/cartpole_critics/"
-        title = "Cartpole Critic"
-        plt.colorbar(label="critic value")
+    directory += "/cartpole_critics/"
+    title = "Cartpole Critic"
+    plt.colorbar(label="critic value")
 
     # Add a point at the center
     plt.scatter([0], [0])
