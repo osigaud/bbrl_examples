@@ -29,7 +29,7 @@ from my_salina_examples.models.salina_loggers import Logger
 from my_salina_examples.chrono import Chrono
 
 from my_salina_examples.visu.visu_policies import plot_policy
-
+from my_salina_examples.utils.utils import is_vec_of_ones
 
 def _index(tensor_3d, tensor_2d):
     """
@@ -84,6 +84,7 @@ def setup_optimizers(cfg, action_agent, critic_agent):
 
 def compute_critic_loss(cfg, reward, done, critic):
     # Compute temporal difference
+    assert is_vec_of_ones(reward[1:])
     target = reward[1:] + cfg.algorithm.discount_factor * critic[1:].detach() * (1 - done[1:].float())
     td = target - critic[:-1]
 
