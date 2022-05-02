@@ -1,6 +1,4 @@
-import torch
 import torch.nn as nn
-from salina import Agent
 
 
 def build_backbone(sizes, activation):

@@ -1,4 +1,4 @@
-from salina import Agent
+from salina.agent import Agent
 import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
@@ -16,8 +16,8 @@ class QAgent(Agent):
         action = self.get(("action", t))
         if detach_actions:
             action = action.detach()
-        input = torch.cat((obs, action), dim=1)
-        q_value = self.model(input)
+        osb_act = torch.cat((obs, action), dim=1)
+        q_value = self.model(osb_act)
         self.set(("q_value", t), q_value)
 
 
@@ -57,6 +57,6 @@ class ContinuousCriticAgent(Agent):
         """
 
     def forward(self, t, **kwargs):
-        input = self.get(("env/env_obs", t))
-        critic = self.model_critic(input).squeeze(-1)
+        obs = self.get(("env/env_obs", t))
+        critic = self.model_critic(obs).squeeze(-1)
         self.set(("critic", t), critic)

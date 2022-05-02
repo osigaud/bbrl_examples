@@ -8,7 +8,8 @@ import my_gym
 
 from gym.wrappers import TimeLimit
 from omegaconf import DictConfig, OmegaConf
-from salina import instantiate_class, get_arguments, get_class, Workspace
+from salina import instantiate_class, get_arguments, get_class
+from salina.workspace import Workspace
 from salina.agents import Agents, TemporalAgent
 from salina.logger import TFLogger
 import hydra
