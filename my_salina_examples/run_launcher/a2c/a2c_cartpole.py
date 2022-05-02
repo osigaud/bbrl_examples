@@ -193,7 +193,8 @@ def run_a2c(cfg, max_grad_norm=0.5):
                 best_reward = mean
                 filename = "./data/policies/a2c" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
-                plot_policy(eval_agent, eval_env_agent, "CartPoleContinuous-v0", "./data/policies/")
+                policy = eval_agent.agent.agents[1]
+                plot_policy(policy, eval_env_agent, "CartPoleContinuous-v0", "./data/policies/", best_reward)
     chrono.stop()
 
 
@@ -205,12 +206,12 @@ params = {
                # "cache_size": 10000,
                "every_n_seconds": 10},
     "algorithm": {
-        "seed": 6,
+        "seed": 5,
         "n_envs": 8,
         "n_steps": 200,
         "eval_interval": 2000,
         "nb_evals": 1,
-        "max_epochs": 100,
+        "max_epochs": 1000,
         "discount_factor": 0.95,
         "entropy_coef": 0.001,
         "critic_coef": 1.0,
@@ -218,7 +219,7 @@ params = {
         "architecture": {"hidden_size": [25, 25]},
     },
     "gym_env": {"classname": "__main__.make_gym_env",
-                "env_name": "CartPoleContinuous-v0",
+                "env_name": "CartPoleContinuous-v1",
                 "max_episode_steps": 500},
     "optimizer": {"classname": "torch.optim.Adam",
                   "lr": 0.01},

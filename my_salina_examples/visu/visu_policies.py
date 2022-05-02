@@ -7,7 +7,7 @@ import torch as th
 
 from my_salina_examples.visu.common import final_show
 
-def plot_policy(agent, env, env_name, directory, plot=False):
+def plot_policy(agent, env, env_name, directory, best_reward, plot=False):
     if "cartpole" in env_name.lower():
         plot_env = plot_cartpole_policy
     elif "pendulum" in env_name.lower():
@@ -16,7 +16,7 @@ def plot_policy(agent, env, env_name, directory, plot=False):
         print("Environment not supported for plot. Please use CartPole or Pendulum")
         return
 
-    figname = f"policy_{env_name}.png"
+    figname = f"policy_{env_name}_{best_reward}.png"
     plot_env(agent, env, figname, directory, plot)
 
 
@@ -47,7 +47,7 @@ def plot_pendulum_policy(
             obs = np.array([[np.cos(t), np.sin(t), td]])
             obs = th.from_numpy(obs.astype(np.float32))
 
-            action = agent.forward(obs)
+            action = agent.model(obs)
 
             portrait[definition - (1 + index_td), index_t] = action.item()
 
@@ -106,7 +106,7 @@ def plot_cartpole_policy(
             obs = np.append(obs, y)
             obs = np.append(obs, z2)
             obs = th.from_numpy(obs.astype(np.float32))
-            action = agent.forward(obs)
+            action = agent.model(obs)
 
             portrait[definition - (1 + index_y), index_x] = action.item()
 
