@@ -85,8 +85,8 @@ def setup_optimizers(cfg, action_agent, critic_agent):
 
 def compute_critic_loss(cfg, reward, done, critic):
     # Compute temporal difference
-    assert is_vec_of_ones(reward[1:])
-    target = reward[1:] + cfg.algorithm.discount_factor * critic[1:].detach() * (1 - done[1:].float())
+    assert is_vec_of_ones(reward[0:])
+    target = reward[:-1] + cfg.algorithm.discount_factor * critic[1:].detach() * (1 - done[1:].float())
     td = target - critic[:-1]
 
     # Compute critic loss
@@ -141,6 +141,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
     # 7) Training loop
     for epoch in range(cfg.algorithm.max_epochs):
         # Execute the agent in the workspace
+        # print(f"epoch: {epoch}")
         if epoch > 0:
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
@@ -153,6 +154,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
         nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         critic, done, reward, action = train_workspace["critic", "env/done", "env/reward", "action"]
+        # print(f"reward: {reward}")
         if train_env_agent.is_continuous_action():
             # Get relevant tensors (size are timestep x n_envs x ....)
             action_logp = train_workspace["action_logprobs"]
@@ -210,7 +212,7 @@ params = {
     "algorithm": {
         "seed": 5,
         "n_envs": 8,
-        "n_steps": 200,
+        "n_steps": 20,
         "eval_interval": 2000,
         "nb_evals": 1,
         "max_epochs": 1000,

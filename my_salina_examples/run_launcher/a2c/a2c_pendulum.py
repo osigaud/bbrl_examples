@@ -8,7 +8,8 @@ import my_gym
 
 from gym.wrappers import TimeLimit
 from omegaconf import DictConfig, OmegaConf
-from salina import instantiate_class, get_arguments, get_class, Workspace
+from salina import instantiate_class, get_arguments, get_class
+from salina.workspace import Workspace
 from salina.agents import Agents, TemporalAgent
 
 import salina.rl.functional as RLF
@@ -27,6 +28,7 @@ from torch.autograd import detect_anomaly
 from my_salina_examples.models.salina_actors import ContinuousActionTunableVarianceAgent
 from my_salina_examples.models.salina_actors import ContinuousActionStateDependentVarianceAgent
 from my_salina_examples.models.salina_actors import ContinuousActionConstantVarianceAgent
+from salina.agents.utils import PrintAgent
 from my_salina_examples.models.salina_actors import DeterministicAgent, ProbAgent, ActionAgent
 from my_salina_examples.models.salina_critics import VAgent
 from my_salina_examples.models.salina_envs import AutoResetEnvAgent, NoAutoResetEnvAgent
@@ -54,6 +56,7 @@ def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
         observation_size, action_dim = train_env_agent.get_obs_and_actions_sizes()
         action_agent = ContinuousActionStateDependentVarianceAgent(observation_size, cfg.algorithm.architecture.hidden_size, action_dim)
         param_agent = action_agent
+        # print_agent = PrintAgent(*{"critic", "env/reward", "env/done", "action", "env/env_obs"})
         tr_agent = Agents(train_env_agent, action_agent)
         ev_agent = Agents(eval_env_agent, action_agent)
     else:
@@ -86,7 +89,7 @@ def setup_optimizers(cfg, action_agent, critic_agent):
 
 def compute_critic_loss(cfg, reward, done, critic):
     # Compute temporal difference
-    # target = reward[1:] + cfg.algorithm.discount_factor * critic[1:].detach() * (1 - done[1:].float())
+    # target = reward[:-1] + cfg.algorithm.discount_factor * critic[1:].detach() * (1 - done[1:].float())
     # td = target - critic[:-1]
     td = RLF.gae(critic, reward, done, cfg.algorithm.discount_factor, cfg.algorithm.gae)
     # Compute critic loss
@@ -141,12 +144,12 @@ def run_a2c(cfg, max_grad_norm=0.8):
     # 7) Training loop
     for epoch in range(cfg.algorithm.max_epochs):
         # Execute the agent in the workspace
-        if epoch > 0:
-            train_workspace.zero_grad()
-            train_workspace.copy_n_last_steps(1)
-            a2c_agent(train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True)
-        else:
-            a2c_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True)
+        # if epoch > 0:
+        #    train_workspace.zero_grad()
+        #    train_workspace.copy_n_last_steps(1)
+        #    a2c_agent(train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True)
+        # else:
+        a2c_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True)
 
         # Compute the critic value over the whole workspace
         tcritic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
@@ -207,12 +210,12 @@ params = {
                "every_n_seconds": 10},
     "algorithm": {
         "seed": 6,
-        "n_envs": 128,
-        "n_steps": 200,
-        "eval_interval": 2500,
+        "n_envs": 1,
+        "n_steps": 8,
+        "eval_interval": 1000,
         "nb_evals": 10,
         "gae": 0.8,
-        "max_epochs": 100000,
+        "max_epochs": 10000,
         "discount_factor": 0.95,
         "entropy_coef": 2.55e-7,
         "critic_coef": 0.4,

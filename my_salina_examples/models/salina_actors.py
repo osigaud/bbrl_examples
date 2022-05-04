@@ -93,8 +93,12 @@ class ContinuousActionStateDependentVarianceAgent(Agent):
     def forward(self, t, stochastic, **kwargs):
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
-        mean = self.mean_layer(backbone_output)
-        dist = Normal(mean, self.std_layer(backbone_output))
+        last = self.last_layer(backbone_output)
+        # print(last)
+        mean = self.mean_layer(last)
+        assert not torch.any(torch.isnan(mean)), "Nan Here"
+        dist = Normal(mean, self.std_layer(last))
+
         self.set(("entropy", t), dist.entropy())
         if stochastic:
             action = torch.tanh(dist.sample())  # valid actions are supposed to be in [-1,1] range

@@ -1,5 +1,5 @@
 from salina import get_arguments, get_class, instantiate_class
-from salina.agents.gyma import AutoResetGymAgent, NoAutoResetGymAgent, GymAgent
+from salina.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent, GymAgent
 
 
 class EnvAgent(GymAgent):
