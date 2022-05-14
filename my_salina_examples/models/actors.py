@@ -2,28 +2,53 @@ import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
 
-from my_salina_examples.models.salina_shared_models import build_mlp, build_backbone
+from my_salina_examples.models.shared_models import build_mlp, build_backbone
 from salina.agent import Agent
 
 
-class DeterministicAgent(Agent):
-    def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
+class DiscreteActor(Agent):
+    def __init__(self, state_dim, hidden_size, n_actions):
         super().__init__()
-        layers = [state_dim] + list(hidden_layers) + [action_dim]
-        self.model = build_mlp(layers, activation=nn.ReLU(), output_activation=nn.Tanh())
+        self.model = build_mlp([state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU())
 
-    def forward(self, t, epsilon=0, **kwargs):
-        obs = self.get(("env/env_obs", t))
-        action = self.model(obs)
+    def forward(self, t, stochastic, replay=False, **kwargs):
+        """
+          Compute the action given either a time step (looking into the workspace)
+          or an observation (in kwargs)
+        """
+        if "observation" in kwargs:
+            observation = kwargs["observation"]
+        else:
+            observation = self.get(("env/env_obs", t))
+        scores = self.model(observation)
+        probs = torch.softmax(scores, dim=-1)
 
-        noise = torch.randn(*action.size(), device=action.device) * epsilon
-        action = action + noise
-        action = torch.clip(action, min=-1.0, max=1.0)
-        self.set(("action", t), action)
+        if stochastic:
+            action = torch.distributions.Categorical(probs).sample()
+        else:
+            action = scores.argmax(1)
+
+        entropy = torch.distributions.Categorical(probs).entropy()
+        logprobs = probs[torch.arange(probs.size()[0]), action].log()
+
+        if not replay:
+            self.set(("action", t), action)
+        self.set(("action_logprobs", t), logprobs)
+        self.set(("entropy", t), entropy)
+
+    def predict_action(self, obs, stochastic):
+        scores = self.model(obs)
+
+        if stochastic:
+            probs = torch.softmax(scores, dim=-1)
+            action = torch.distributions.Categorical(probs).sample()
+        else:
+            action = scores.argmax(0)
+        return action
 
 
 class ProbAgent(Agent):
-    def __init__(self, state_dim, hidden_layers, n_action, **kwargs):
+    def __init__(self, state_dim, hidden_layers, n_action):
         super().__init__(name="prob_agent")
         self.model = build_mlp([state_dim] + list(hidden_layers) + [n_action], activation=nn.ReLU())
 
@@ -39,7 +64,7 @@ class ProbAgent(Agent):
 
 
 class ActionAgent(Agent):
-    def __init__(self, **kwargs):
+    def __init__(self):
         super().__init__()
 
     def forward(self, t, stochastic, **kwargs):
@@ -55,8 +80,8 @@ class ActionAgent(Agent):
 # All the actors below use a squashed Gaussian policy, that is the output is the tanh of a Normal distribution
 
 
-class ContinuousActionTunableVarianceAgent(Agent):
-    def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
+class TunableVarianceContinuousActor(Agent):
+    def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(layers, activation=nn.ReLU())
@@ -71,16 +96,25 @@ class ContinuousActionTunableVarianceAgent(Agent):
         dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
         self.set(("entropy", t), dist.entropy())
         if stochastic:
-            action = torch.tanh(dist.sample())  # valid actions are supposed to be in [-1,1] range
+            action = dist.sample()
         else:
-            action = torch.tanh(mean)  # valid actions are supposed to be in [-1,1] range
+            action = mean
         logp_pi = dist.log_prob(action).sum(axis=-1)
         self.set(("action", t), action)
         self.set(("action_logprobs", t), logp_pi)
 
+    def predict_action(self, obs, stochastic):
+        mean = self.model(obs)
+        dist = Normal(mean, self.soft_plus(self.std_param))
+        if stochastic:
+            action = dist.sample()
+        else:
+            action = mean
+        return action
 
-class ContinuousActionStateDependentVarianceAgent(Agent):
-    def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
+
+class StateDependentVarianceContinuousActor(Agent):
+    def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
         self.layers = build_backbone(backbone_dim, activation=nn.ReLU())
@@ -94,23 +128,32 @@ class ContinuousActionStateDependentVarianceAgent(Agent):
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
         last = self.last_layer(backbone_output)
-        # print(last)
         mean = self.mean_layer(last)
         assert not torch.any(torch.isnan(mean)), "Nan Here"
         dist = Normal(mean, self.std_layer(last))
-
         self.set(("entropy", t), dist.entropy())
         if stochastic:
-            action = torch.tanh(dist.sample())  # valid actions are supposed to be in [-1,1] range
+            action = dist.sample()
         else:
-            action = torch.tanh(mean)  # valid actions are supposed to be in [-1,1] range
+            action = mean
         logp_pi = dist.log_prob(action).sum(axis=-1)
         self.set(("action", t), action)
         self.set(("action_logprobs", t), logp_pi)
 
+    def predict_action(self, obs, stochastic):
+        backbone_output = self.backbone(obs)
+        last = self.last_layer(backbone_output)
+        mean = self.mean_layer(last)
+        dist = Normal(mean, self.std_layer(last))
+        if stochastic:
+            action = dist.sample()
+        else:
+            action = mean
+        return action
 
-class ContinuousActionConstantVarianceAgent(Agent):
-    def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
+
+class ConstantVarianceContinuousActor(Agent):
+    def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(layers, activation=nn.ReLU())
@@ -122,9 +165,18 @@ class ContinuousActionConstantVarianceAgent(Agent):
         dist = Normal(mean, self.std_param)  # std must be positive
         self.set(("entropy", t), dist.entropy())
         if stochastic:
-            action = torch.tanh(dist.sample())  # valid actions are supposed to be in [-1,1] range
+            action = dist.sample()
         else:
-            action = torch.tanh(mean)  # valid actions are supposed to be in [-1,1] range
+            action = mean
         logp_pi = dist.log_prob(action).sum(axis=-1)
         self.set(("action", t), action)
         self.set(("action_logprobs", t), logp_pi)
+
+    def predict_action(self, obs, stochastic):
+        mean = self.model(obs)
+        dist = Normal(mean, self.std_param)
+        if stochastic:
+            action = dist.sample()
+        else:
+            action = mean
+        return action

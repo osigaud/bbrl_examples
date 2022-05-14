@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
 
-from my_salina_examples.models.salina_shared_models import build_mlp
+from my_salina_examples.models.shared_models import build_mlp
 
 
 class QAgent(Agent):

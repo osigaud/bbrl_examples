@@ -1,4 +1,5 @@
-import sys, os
+import sys
+import os
 import torch
 
 import gym
@@ -7,7 +8,8 @@ from gym.wrappers import TimeLimit
 import hydra
 from omegaconf import DictConfig
 
-from salina import instantiate_class, Workspace
+from salina import instantiate_class
+from salina.workspace import Workspace
 from salina.agents import Agents, TemporalAgent, NRemoteAgent
 from salina.agents.gyma import AutoResetGymAgent
 from salina.agents.gyma import NoAutoResetGymAgent, GymAgent
