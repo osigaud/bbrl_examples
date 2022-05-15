@@ -73,11 +73,11 @@ def setup_optimizers(cfg, action_agent, critic_agent):
     return optimizer
 
 
-def compute_critic_loss(cfg, reward, must_bootstrap, critic):
+def compute_critic_loss(cfg, reward, must_bootstrap, v_value):
     # Compute temporal difference
-    # target = reward[:-1] + cfg.algorithm.discount_factor * critic[1:].detach() * must_bootstrap.float()
-    # td = target - critic[:-1]
-    td = gae(critic, reward, must_bootstrap, cfg.algorithm.discount_factor, cfg.algorithm.gae)
+    # target = reward[:-1] + cfg.algorithm.discount_factor * v_value[1:].detach() * must_bootstrap.float()
+    # td = target - v_value[:-1]
+    td = gae(v_value, reward, must_bootstrap, cfg.algorithm.discount_factor, cfg.algorithm.gae)
     # Compute critic loss
     td_error = td ** 2
     critic_loss = td_error.mean()
@@ -92,8 +92,6 @@ def compute_actor_loss(action_logp, td):
 def run_a2c(cfg, max_grad_norm=0.5):
     # 1)  Build the  logger
     chrono = Chrono()
-    cfg.logger.log_dir = cfg.logger.log_dir + str(time.time())
-    print(cfg.logger.log_dir)
     logger = Logger(cfg)
     best_reward = -10e9
 
@@ -131,8 +129,8 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
         transition_workspace = train_workspace.get_transitions()
 
-        critic, done, truncated, reward, action, action_logp = transition_workspace[
-            "critic", "env/done", "env/truncated", "env/reward", "action", "action_logprobs"]
+        v_value, done, truncated, reward, action, action_logp = transition_workspace[
+            "v_value", "env/done", "env/truncated", "env/reward", "action", "action_logprobs"]
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
@@ -140,7 +138,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         # Compute critic loss
-        critic_loss, td = compute_critic_loss(cfg, reward, must_bootstrap, critic)
+        critic_loss, td = compute_critic_loss(cfg, reward, must_bootstrap, v_value)
         a2c_loss = compute_actor_loss(action_logp, td)
 
         # Compute entropy loss
@@ -172,12 +170,15 @@ def run_a2c(cfg, max_grad_norm=0.5):
             print(f"epoch: {epoch}, reward: {mean}")
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
-                filename = cfg.logger.log_dir + "/a2c" + str(mean.item()) + ".agt"
+                directory = "./a2c_policies/"
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
+                filename = directory + "a2c_" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
                 policy = eval_agent.agent.agents[1]
                 critic = critic_agent.agent
-                plot_policy(policy, eval_env_agent, "./tmp/", cfg.gym_env.env_name, best_reward, stochastic=False)
-                plot_critic(critic, eval_env_agent, "./tmp/", cfg.gym_env.env_name, best_reward)
+                plot_policy(policy, eval_env_agent, "./a2c_plots/", cfg.gym_env.env_name, best_reward, stochastic=False)
+                plot_critic(critic, eval_env_agent, "./a2c_plots/", cfg.gym_env.env_name, best_reward)
     chrono.stop()
 
 
@@ -187,13 +188,9 @@ def run_a2c(cfg, max_grad_norm=0.5):
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     torch.manual_seed(cfg.algorithm.seed)
-    cfg.logger.log_dir = cwd + cfg.logger.log_dir
     run_a2c(cfg)
 
 
-cwd = os.getcwd()
-
-
 if __name__ == "__main__":
-    sys.path.append(cwd)
+    sys.path.append(os.getcwd())
     main()

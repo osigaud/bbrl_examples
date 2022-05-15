@@ -3,7 +3,7 @@
 
     logger:
       classname: salina.logger.TFLogger
-      log_dir: /tmp/
+      log_dir: ./a2c_logs/
       verbose: False
       every_n_seconds: 10
 

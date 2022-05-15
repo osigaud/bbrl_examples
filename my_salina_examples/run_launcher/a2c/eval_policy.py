@@ -8,13 +8,13 @@ from omegaconf import OmegaConf
 from salina import Workspace
 from salina.agents import Agents, TemporalAgent
 
-from my_salina_examples.models.salina_actors import ContinuousActionTunableVarianceAgent
-from my_salina_examples.models.salina_actors import ContinuousActionStateDependentVarianceAgent
-from my_salina_examples.models.salina_actors import ContinuousActionConstantVarianceAgent
-from my_salina_examples.models.salina_actors import DeterministicAgent, ProbAgent, ActionAgent
-from my_salina_examples.models.salina_critics import VAgent
-from my_salina_examples.models.salina_envs import AutoResetEnvAgent, NoAutoResetEnvAgent
-from my_salina_examples.models.salina_loggers import Logger
+from my_salina_examples.models.actors import TunableVarianceContinuousActor
+from my_salina_examples.models.actors import StateDependentVarianceContinuousActor
+from my_salina_examples.models.actors import ConstantVarianceContinuousActor
+from my_salina_examples.models.actors import DiscreteActor, ProbAgent, ActionAgent
+from my_salina_examples.models.critics import VAgent
+from my_salina_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
+from my_salina_examples.models.loggers import Logger
 from my_salina_examples.chrono import Chrono
 
 
