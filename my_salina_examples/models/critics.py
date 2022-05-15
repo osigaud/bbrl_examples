@@ -1,12 +1,11 @@
 from salina.agent import Agent
 import torch
 import torch.nn as nn
-from torch.distributions.normal import Normal
 
 from my_salina_examples.models.shared_models import build_mlp
 
 
-class DiscreteQAgent(Agent):
+class ContinuousQAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
         self.model = build_mlp([state_dim + action_dim] + list(hidden_layers) + [1], activation=nn.ReLU())
@@ -22,7 +21,7 @@ class DiscreteQAgent(Agent):
 
 
 class VAgent(Agent):
-    def __init__(self, state_dim, hidden_layers, **kwargs):
+    def __init__(self, state_dim, hidden_layers):
         super().__init__()
         self.model = build_mlp([state_dim] + list(hidden_layers) + [1], activation=nn.ReLU())
 
@@ -32,12 +31,15 @@ class VAgent(Agent):
         self.set(("v_value", t), critic)
 
         
-class ContinuousQAgent(Agent):
-    def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
+class DiscreteQAgent(Agent):
+    def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         self.model = build_mlp([state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU(), output_activation=nn.Tanh())
 
-    def forward(self, t, **kwargs):
+    def forward(self, t, choose_action=True, **kwargs):
         obs = self.get(("env/env_obs", t))
-        critic = self.model_critic(obs).squeeze(-1)
-        self.set(("q_value", t), critic)
+        q_values = self.model_critic(obs).squeeze(-1)
+        self.set(("q_values", t), q_values)
+        if choose_action:
+            action = q_values.argmax(1)
+            self.set(("action", t), action)
