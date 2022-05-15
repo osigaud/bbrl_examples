@@ -25,6 +25,7 @@ import torch.nn as nn
 import torch.autograd as autograd
 from torch.autograd import detect_anomaly
 
+from my_salina_examples.models.actors import EGreedyActionSelector
 from my_salina_examples.models.critics import DiscreteQAgent
 from my_salina_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
 from my_salina_examples.models.loggers import Logger
@@ -36,10 +37,11 @@ from my_salina_examples.chrono import Chrono
 # Create the DQN Agent
 def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
-
-    q_agent = TemporalAgent(DiscreteQAgent(obs_size, act_size, cfg.algorithm.architecture.hidden_size))
-    tr_agent = Agents(train_env_agent, q_agent)
-    ev_agent = Agents(eval_env_agent, q_agent)
+    critic = DiscreteQAgent(obs_size, act_size, cfg.algorithm.architecture.hidden_size)
+    explorer = EGreedyActionSelector(cfg.algorithm.epsilon)
+    q_agent = TemporalAgent(critic)
+    tr_agent = Agents(train_env_agent, explorer, critic)
+    ev_agent = Agents(eval_env_agent, critic)
 
     # Get an agent that is executed on a complete workspace
     train_agent = TemporalAgent(tr_agent)
@@ -59,7 +61,7 @@ def setup_optimizers(cfg, q_agent):
     optimizer = get_class(cfg.optimizer)(parameters, **optimizer_args)
     return optimizer
 
-# Take the action
+
 def compute_critic_loss(cfg, reward, must_bootstrap, q_value, action):
     # Compute temporal difference
     target = reward[:-1] + cfg.algorithm.discount_factor * q_value.max(0)[1:].detach() * must_bootstrap.float()
@@ -122,7 +124,7 @@ def run_dqn(cfg, max_grad_norm=0.5):
         critic_loss, td = compute_critic_loss(cfg, reward, must_bootstrap, q_value, action)
 
         # Store the loss for tensorboard display
-        logger.add_loss(nb_steps, critic_loss)
+        logger.add_log("critic_loss", critic_loss, epoch)
 
         optimizer.zero_grad()
         critic_loss.backward()
@@ -132,7 +134,7 @@ def run_dqn(cfg, max_grad_norm=0.5):
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
             eval_workspace = Workspace()  # Used for evaluation
-            eval_agent(eval_workspace, t=0, stop_variable="env/done", stochastic=False)
+            eval_agent(eval_workspace, t=0, stop_variable="env/done", choose_action=True)
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)
@@ -142,15 +144,13 @@ def run_dqn(cfg, max_grad_norm=0.5):
                 directory = "./dqn_critic/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "a2c_" + str(mean.item()) + ".agt"
+                filename = directory + "dqn_" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
                 # critic = q_agent.agent
     chrono.stop()
 
 
-# @hydra.main(config_path="./configs/", config_name="a2c_pendulum.yaml")
-# @hydra.main(config_path="./configs/", config_name="a2c_cartpolecontinuous.yaml")
-@hydra.main(config_path="./configs/", config_name="a2c_cartpole.yaml")
+@hydra.main(config_path="./configs/", config_name="dqn_cartpole.yaml")
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     torch.manual_seed(cfg.algorithm.seed)

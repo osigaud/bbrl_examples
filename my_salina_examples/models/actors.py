@@ -6,6 +6,47 @@ from my_salina_examples.models.shared_models import build_mlp, build_backbone
 from salina.agent import Agent
 
 
+class EGreedyActionSelector(Agent):
+    def __init__(self, epsilon):
+        super().__init__()
+        self.epsilon = epsilon
+
+    def forward(self, t, **kwargs):
+        q_values = self.get(("q_values", t))
+        nb_actions = q_values.size()[1]
+        size = q_values.size()[0]
+        is_random = torch.rand(size).lt(self.epsilon).float()
+        random_action = torch.randint(low=0, high=nb_actions, size=(size,))
+        max_action = q_values.max(1)[1]
+        action = is_random * random_action + (1 - is_random) * max_action
+        action = action.long()
+        self.set(("action", t), action)
+
+
+class SoftmaxActionSelector(Agent):
+    def __init__(self, temperature):
+        super().__init__()
+        self.temperature = temperature
+
+    def forward(self, t, **kwargs):
+        q_values = self.get(("q_values", t))
+        probs = torch.softmax(q_values, dim=-1)
+        action = torch.distributions.Categorical(probs).sample()
+        self.set(("action", t), action)
+
+
+class RandomDiscreteActor(Agent):
+    def __init__(self, nb_actions):
+        super().__init__()
+        self.nb_actions = nb_actions
+
+    def forward(self, t, **kwargs):
+        obs = self.get(("env/env_obs", t))
+        size = obs.size()[0]
+        action = torch.randint(low=0, high=self.nb_actions, size=(size,))
+        self.set(("action", t), action)
+
+
 class DiscreteActor(Agent):
     def __init__(self, state_dim, hidden_size, n_actions):
         super().__init__()
@@ -29,11 +70,11 @@ class DiscreteActor(Agent):
             action = scores.argmax(1)
 
         entropy = torch.distributions.Categorical(probs).entropy()
-        logprobs = probs[torch.arange(probs.size()[0]), action].log()
+        log_probs = probs[torch.arange(probs.size()[0]), action].log()
 
         if not replay:
             self.set(("action", t), action)
-        self.set(("action_logprobs", t), logprobs)
+        self.set(("action_logprobs", t), log_probs)
         self.set(("entropy", t), entropy)
 
     def predict_action(self, obs, stochastic):
