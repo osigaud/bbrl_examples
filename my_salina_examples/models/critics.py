@@ -38,7 +38,7 @@ class DiscreteQAgent(Agent):
 
     def forward(self, t, choose_action=True, **kwargs):
         obs = self.get(("env/env_obs", t))
-        q_values = self.model_critic(obs).squeeze(-1)
+        q_values = self.model(obs).squeeze(-1)
         self.set(("q_values", t), q_values)
         if choose_action:
             action = q_values.argmax(1)
