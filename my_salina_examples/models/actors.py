@@ -140,9 +140,9 @@ class TunableVarianceContinuousActor(Agent):
             action = dist.sample()
         else:
             action = mean
-        logp_pi = dist.log_prob(action).sum(axis=-1)
+        logp_p = dist.log_prob(action)  # .sum(axis=-1)
         self.set(("action", t), action)
-        self.set(("action_logprobs", t), logp_pi)
+        self.set(("action_logprobs", t), logp_p)
 
     def predict_action(self, obs, stochastic):
         mean = self.model(obs)
@@ -177,9 +177,9 @@ class StateDependentVarianceContinuousActor(Agent):
             action = dist.sample()
         else:
             action = mean
-        logp_pi = dist.log_prob(action).sum(axis=-1)
+        logp_p = dist.log_prob(action)  # .sum(axis=-1)
         self.set(("action", t), action)
-        self.set(("action_logprobs", t), logp_pi)
+        self.set(("action_logprobs", t), logp_p)
 
     def predict_action(self, obs, stochastic):
         backbone_output = self.backbone(obs)
@@ -209,9 +209,9 @@ class ConstantVarianceContinuousActor(Agent):
             action = dist.sample()
         else:
             action = mean
-        logp_pi = dist.log_prob(action).sum(axis=-1)
+        logp_p = dist.log_prob(action)  # .sum(axis=-1)
         self.set(("action", t), action)
-        self.set(("action_logprobs", t), logp_pi)
+        self.set(("action_logprobs", t), logp_p)
 
     def predict_action(self, obs, stochastic):
         mean = self.model(obs)

@@ -24,7 +24,7 @@
 
     gym_env:
       classname: __main__.make_gym_env
-      env_name: Pendulum-v0
+      env_name: Pendulum-v1
 
     optimizer:
       classname: torch.optim.RMSprop

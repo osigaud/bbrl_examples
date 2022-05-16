@@ -9,4 +9,4 @@ matplotlib~=3.5.2
 pandas
 tensorboard
 tqdm
-hydra
+git+https://github.com/facebookresearch/hydra.git

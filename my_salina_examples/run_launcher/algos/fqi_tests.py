@@ -64,10 +64,11 @@ def setup_optimizers(cfg, q_agent):
 
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute temporal difference
-    # print(q_values)
-    print("max", q_values.max(0)[1:])
-    print("mb", must_bootstrap.float())
-    target = reward[:-1] + cfg.algorithm.discount_factor * q_values.max(0)[1:] * must_bootstrap.float()
+    print(q_values)
+    max_q = q_values.max(-1)[1]
+    print("max q", max_q)
+    # print("mb", must_bootstrap.float())
+    target = reward[:-1] + cfg.algorithm.discount_factor * max_q[1:] * must_bootstrap.float()
     td = target - q_values[action][:-1]
     # Compute critic loss
     td_error = td ** 2
@@ -109,8 +110,6 @@ def run_fqi(cfg, max_grad_norm=0.5):
         else:
             train_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True)
 
-        # Ajouter de l'exploration
-  
         nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         transition_workspace = train_workspace.get_transitions()

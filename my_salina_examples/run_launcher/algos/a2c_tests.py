@@ -142,7 +142,6 @@ def run_a2c(cfg, max_grad_norm=0.5):
         a2c_loss = compute_actor_loss(action_logp, td)
 
         # Compute entropy loss
-        # entropy_loss = torch.distributions.Categorical(action_probs).entropy().mean()
         entropy_loss = torch.mean(train_workspace['entropy'])
 
         # Store the losses for tensorboard display
@@ -182,9 +181,9 @@ def run_a2c(cfg, max_grad_norm=0.5):
     chrono.stop()
 
 
-# @hydra.main(config_path="./configs/", config_name="a2c_pendulum.yaml")
+@hydra.main(config_path="./configs/", config_name="a2c_pendulum.yaml")
 # @hydra.main(config_path="./configs/", config_name="a2c_cartpolecontinuous.yaml")
-@hydra.main(config_path="./configs/", config_name="a2c_cartpole.yaml")
+# @hydra.main(config_path="./configs/", config_name="a2c_cartpole.yaml")
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     torch.manual_seed(cfg.algorithm.seed)
