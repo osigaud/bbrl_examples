@@ -13,7 +13,7 @@
       n_envs: 1
       n_steps: 100
       eval_interval: 2000
-      target_critic_update: 5000
+      target_critic_update: 10000
       nb_evals: 10
       gae: 0.8
       max_epochs: 10000

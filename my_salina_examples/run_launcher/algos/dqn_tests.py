@@ -74,7 +74,7 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, 
     # Compute critic loss
     td_error = td ** 2
     critic_loss = td_error.mean()
-    return critic_loss, td
+    return critic_loss
 
 
 def run_dqn(cfg, max_grad_norm=0.5):
@@ -120,9 +120,8 @@ def run_dqn(cfg, max_grad_norm=0.5):
             "q_values", "env/done", "env/truncated", "env/reward", "action"]
 
         with torch.no_grad():
-            target_q_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True)
+            target_q_agent(transition_workspace, t=0, n_steps=2, stochastic=True)
 
-        transition_workspace = train_workspace.get_transitions()
         target_q_values = transition_workspace["q_values"]
 
         # Determines whether values of the critic should be propagated
@@ -131,7 +130,7 @@ def run_dqn(cfg, max_grad_norm=0.5):
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         # Compute critic loss
-        critic_loss, td = compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, action)
+        critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, action)
 
         # Store the loss for tensorboard display
         logger.add_log("critic_loss", critic_loss, nb_steps)
@@ -141,6 +140,7 @@ def run_dqn(cfg, max_grad_norm=0.5):
         torch.nn.utils.clip_grad_norm_(q_agent.parameters(), max_grad_norm)
         optimizer.step()
         if nb_steps - tmp_steps2 > cfg.algorithm.target_critic_update:
+            print("nb_steps copy: ", nb_steps)
             tmp_steps2 = nb_steps
             target_q_agent = copy.deepcopy(q_agent)
 
