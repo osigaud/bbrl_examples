@@ -19,7 +19,7 @@
       max_epochs: 10000
       discount_factor: 0.95
       architecture:
-        hidden_size: [25, 25]
+        hidden_size: [64, 64]
 
     gym_env:
       classname: __main__.make_gym_env

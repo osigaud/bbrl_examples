@@ -1,7 +1,9 @@
 import sys
 import os
-import time
 import numpy as np
+
+import copy
+import time
 
 import gym
 import my_gym
@@ -17,8 +19,6 @@ from salina.rl.functionalb import gae
 from salina.logger import TFLogger
 import hydra
 
-import copy
-import time
 
 import torch
 import torch.nn as nn
@@ -123,6 +123,7 @@ def run_dqn(cfg, max_grad_norm=0.5):
             target_q_agent(transition_workspace, t=0, n_steps=2, stochastic=True)
 
         target_q_values = transition_workspace["q_values"]
+        # assert torch.equal(q_values, target_q_values), "values differ"
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
@@ -142,7 +143,9 @@ def run_dqn(cfg, max_grad_norm=0.5):
         if nb_steps - tmp_steps2 > cfg.algorithm.target_critic_update:
             print("nb_steps copy: ", nb_steps)
             tmp_steps2 = nb_steps
-            target_q_agent = copy.deepcopy(q_agent)
+            target_q_agent.agent = copy.deepcopy(q_agent.agent)
+            print("q_val:", q_values)
+            print("tq_val:", target_q_values)
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
