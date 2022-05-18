@@ -64,12 +64,11 @@ def setup_optimizers(cfg, q_agent):
 
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute temporal difference
-    print(q_values)
-    max_q = q_values.max(-1)[1]
-    print("max q", max_q)
-    # print("mb", must_bootstrap.float())
-    target = reward[:-1] + cfg.algorithm.discount_factor * max_q[1:] * must_bootstrap.float()
-    td = target - q_values[action][:-1]
+    max_q = q_values[1].max(-1)[0]
+    target = reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
+    act = action[0].unsqueeze(-1)
+    qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
+    td = target - qvals
     # Compute critic loss
     td_error = td ** 2
     critic_loss = td_error.mean()
@@ -86,7 +85,7 @@ def run_fqi(cfg, max_grad_norm=0.5):
     train_env_agent = AutoResetEnvAgent(cfg, n_envs=cfg.algorithm.n_envs)
     eval_env_agent = NoAutoResetEnvAgent(cfg, n_envs=cfg.algorithm.nb_evals)
 
-    # 3) Create the A2C Agent
+    # 3) Create the DQN-like Agent
     train_agent, eval_agent, q_agent = create_fqi_agent(cfg, train_env_agent, eval_env_agent)
 
     # 5) Configure the workspace to the right dimension
@@ -126,7 +125,7 @@ def run_fqi(cfg, max_grad_norm=0.5):
         critic_loss, td = compute_critic_loss(cfg, reward, must_bootstrap, q_values, action)
 
         # Store the loss for tensorboard display
-        logger.add_log("critic_loss", critic_loss, epoch)
+        logger.add_log("critic_loss", critic_loss, nb_steps)
 
         optimizer.zero_grad()
         critic_loss.backward()

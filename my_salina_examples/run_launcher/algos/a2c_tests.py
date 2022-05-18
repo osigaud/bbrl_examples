@@ -75,7 +75,7 @@ def setup_optimizers(cfg, action_agent, critic_agent):
 
 def compute_critic_loss(cfg, reward, must_bootstrap, v_value):
     # Compute temporal difference
-    # target = reward[:-1] + cfg.algorithm.discount_factor * v_value[1:].detach() * must_bootstrap.float()
+    # target = reward[:-1] + cfg.algorithm.discount_factor * v_value[1:].detach() * must_bootstrap.int()
     # td = target - v_value[:-1]
     td = gae(v_value, reward, must_bootstrap, cfg.algorithm.discount_factor, cfg.algorithm.gae)
     # Compute critic loss

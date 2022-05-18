@@ -10,16 +10,14 @@
     algorithm:
       seed: 4
       epsilon: 0.02
-      n_envs: 8
-      n_steps: 20
+      n_envs: 1
+      n_steps: 100
       eval_interval: 2000
+      target_critic_update: 5000
       nb_evals: 10
       gae: 0.8
-      max_epochs: 3000
+      max_epochs: 10000
       discount_factor: 0.95
-      entropy_coef: 2.55e-5
-      critic_coef: 0.6
-      a2c_coef: 1
       architecture:
         hidden_size: [25, 25]
 

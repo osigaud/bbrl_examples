@@ -37,17 +37,19 @@ from my_salina_examples.chrono import Chrono
 # Create the DQN Agent
 def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
-    critic = DiscreteQAgent(obs_size, act_size, cfg.algorithm.architecture.hidden_size)
+    critic = DiscreteQAgent(obs_size, cfg.algorithm.architecture.hidden_size, act_size)
+    target_critic = copy.deepcopy(critic)
     explorer = EGreedyActionSelector(cfg.algorithm.epsilon)
     q_agent = TemporalAgent(critic)
-    tr_agent = Agents(train_env_agent, explorer, critic)
+    target_q_agent = TemporalAgent(target_critic)
+    tr_agent = Agents(train_env_agent, critic, explorer)
     ev_agent = Agents(eval_env_agent, critic)
 
     # Get an agent that is executed on a complete workspace
     train_agent = TemporalAgent(tr_agent)
     eval_agent = TemporalAgent(ev_agent)
     train_agent.seed(cfg.algorithm.seed)
-    return train_agent, eval_agent, q_agent
+    return train_agent, eval_agent, q_agent, target_q_agent
 
 
 def make_gym_env(env_name):
@@ -62,10 +64,13 @@ def setup_optimizers(cfg, q_agent):
     return optimizer
 
 
-def compute_critic_loss(cfg, reward, must_bootstrap, q_value, action):
+def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, action):
     # Compute temporal difference
-    target = reward[:-1] + cfg.algorithm.discount_factor * q_value.max(0)[1:].detach() * must_bootstrap.float()
-    td = target - q_value[action][:-1]
+    max_q = target_q_values[1].max(-1)[0]
+    target = reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
+    act = action[0].unsqueeze(-1)
+    qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
+    td = target - qvals
     # Compute critic loss
     td_error = td ** 2
     critic_loss = td_error.mean()
@@ -82,8 +87,8 @@ def run_dqn(cfg, max_grad_norm=0.5):
     train_env_agent = AutoResetEnvAgent(cfg, n_envs=cfg.algorithm.n_envs)
     eval_env_agent = NoAutoResetEnvAgent(cfg, n_envs=cfg.algorithm.nb_evals)
 
-    # 3) Create the A2C Agent
-    a2c_agent, eval_agent, q_agent = create_dqn_agent(cfg, train_env_agent, eval_env_agent)
+    # 3) Create the DQN-like Agent
+    train_agent, eval_agent, q_agent, target_q_agent = create_dqn_agent(cfg, train_env_agent, eval_env_agent)
 
     # 5) Configure the workspace to the right dimension
     # Note that no parameter is needed to create the workspace.
@@ -95,6 +100,7 @@ def run_dqn(cfg, max_grad_norm=0.5):
     optimizer = setup_optimizers(cfg, q_agent)
     nb_steps = 0
     tmp_steps = 0
+    tmp_steps2 = 0
 
     # 7) Training loop
     for epoch in range(cfg.algorithm.max_epochs):
@@ -102,18 +108,22 @@ def run_dqn(cfg, max_grad_norm=0.5):
         if epoch > 0:
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
-            q_agent(train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True)
+            train_agent(train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True)
         else:
-            q_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True)
+            train_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True)
 
-        # Ajouter de l'exploration
-  
         nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         transition_workspace = train_workspace.get_transitions()
 
-        q_value, done, truncated, reward, action = transition_workspace[
-            "q_value", "env/done", "env/truncated", "env/reward", "action"]
+        q_values, done, truncated, reward, action = transition_workspace[
+            "q_values", "env/done", "env/truncated", "env/reward", "action"]
+
+        with torch.no_grad():
+            target_q_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True)
+
+        transition_workspace = train_workspace.get_transitions()
+        target_q_values = transition_workspace["q_values"]
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
@@ -121,15 +131,18 @@ def run_dqn(cfg, max_grad_norm=0.5):
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         # Compute critic loss
-        critic_loss, td = compute_critic_loss(cfg, reward, must_bootstrap, q_value, action)
+        critic_loss, td = compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, action)
 
         # Store the loss for tensorboard display
-        logger.add_log("critic_loss", critic_loss, epoch)
+        logger.add_log("critic_loss", critic_loss, nb_steps)
 
         optimizer.zero_grad()
         critic_loss.backward()
-        torch.nn.utils.clip_grad_norm_(a2c_agent.parameters(), max_grad_norm)
+        torch.nn.utils.clip_grad_norm_(q_agent.parameters(), max_grad_norm)
         optimizer.step()
+        if nb_steps - tmp_steps2 > cfg.algorithm.target_critic_update:
+            tmp_steps2 = nb_steps
+            target_q_agent = copy.deepcopy(q_agent)
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps

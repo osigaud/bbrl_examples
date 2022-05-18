@@ -140,7 +140,7 @@ class TunableVarianceContinuousActor(Agent):
             action = dist.sample()
         else:
             action = mean
-        logp_p = dist.log_prob(action)  # .sum(axis=-1)
+        logp_p = dist.log_prob(action).sum(axis=-1)
         self.set(("action", t), action)
         self.set(("action_logprobs", t), logp_p)
 
@@ -177,7 +177,7 @@ class StateDependentVarianceContinuousActor(Agent):
             action = dist.sample()
         else:
             action = mean
-        logp_p = dist.log_prob(action)  # .sum(axis=-1)
+        logp_p = dist.log_prob(action).sum(axis=-1)
         self.set(("action", t), action)
         self.set(("action_logprobs", t), logp_p)
 
@@ -209,7 +209,7 @@ class ConstantVarianceContinuousActor(Agent):
             action = dist.sample()
         else:
             action = mean
-        logp_p = dist.log_prob(action)  # .sum(axis=-1)
+        logp_p = dist.log_prob(action).sum(axis=-1)
         self.set(("action", t), action)
         self.set(("action_logprobs", t), logp_p)
 
