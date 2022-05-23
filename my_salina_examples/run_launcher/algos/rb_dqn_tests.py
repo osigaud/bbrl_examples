@@ -12,7 +12,6 @@ from gym.wrappers import TimeLimit
 from omegaconf import DictConfig, OmegaConf
 from salina import instantiate_class, get_arguments, get_class
 from salina.workspace import Workspace
-from salina.rl.replay_bufferb import ReplayBuffer
 from salina.agents import Agents, TemporalAgent
 
 from salina.rl.functionalb import gae
@@ -67,7 +66,7 @@ def setup_optimizers(cfg, q_agent):
 
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, action):
     # Compute temporal difference
-    max_q = target_q_values[1].max(-1)[0].detach()
+    max_q = target_q_values[1].max(-1)[0]
     target = reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
     act = action[0].unsqueeze(-1)
     qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
@@ -96,7 +95,6 @@ def run_dqn(cfg, max_grad_norm=0.5):
     # In the training loop, calling the agent() and critic_agent()
     # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
-    rb = ReplayBuffer(max_size=1e6)
 
     # 6) Configure the optimizer over the a2c agent
     optimizer = setup_optimizers(cfg, q_agent)
@@ -117,15 +115,12 @@ def run_dqn(cfg, max_grad_norm=0.5):
         nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         transition_workspace = train_workspace.get_transitions()
-        rb.put(transition_workspace)
 
-        rb_workspace = rb.get_shuffled(cfg.algorithm.n_steps)
-
-        q_values, done, truncated, reward, action = rb_workspace[
+        q_values, done, truncated, reward, action = transition_workspace[
             "q_values", "env/done", "env/truncated", "env/reward", "action"]
 
         with torch.no_grad():
-            target_q_agent(rb_workspace, t=0, n_steps=2, stochastic=True)
+            target_q_agent(transition_workspace, t=0, n_steps=2, stochastic=True)
 
         target_q_values = transition_workspace["q_values"]
         # assert torch.equal(q_values, target_q_values), "values differ"
@@ -146,8 +141,11 @@ def run_dqn(cfg, max_grad_norm=0.5):
         torch.nn.utils.clip_grad_norm_(q_agent.parameters(), max_grad_norm)
         optimizer.step()
         if nb_steps - tmp_steps2 > cfg.algorithm.target_critic_update:
+            print("nb_steps copy: ", nb_steps)
             tmp_steps2 = nb_steps
             target_q_agent.agent = copy.deepcopy(q_agent.agent)
+            print("q_val:", q_values)
+            print("tq_val:", target_q_values)
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps

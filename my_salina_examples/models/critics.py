@@ -34,7 +34,7 @@ class VAgent(Agent):
 class DiscreteQAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
-        self.model = build_mlp([state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU(), output_activation=nn.Tanh())
+        self.model = build_mlp([state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU())
 
     def forward(self, t, choose_action=True, **kwargs):
         obs = self.get(("env/env_obs", t))

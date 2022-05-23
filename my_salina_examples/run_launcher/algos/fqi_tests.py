@@ -64,7 +64,7 @@ def setup_optimizers(cfg, q_agent):
 
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute temporal difference
-    max_q = q_values[1].max(-1)[0]
+    max_q = q_values[1].max(-1)[0].detach()
     target = reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
     act = action[0].unsqueeze(-1)
     qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
