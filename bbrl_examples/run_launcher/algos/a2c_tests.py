@@ -35,14 +35,20 @@ from salina.visu.visu_critics import plot_critic
 def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
     if train_env_agent.is_continuous_action():
-        action_agent = TunableVarianceContinuousActor(obs_size, cfg.algorithm.architecture.hidden_size, act_size)
+        action_agent = TunableVarianceContinuousActor(
+            obs_size, cfg.algorithm.architecture.hidden_size, act_size
+        )
         # print_agent = PrintAgent(*{"critic", "env/reward", "env/done", "action", "env/env_obs"})
     else:
-        action_agent = DiscreteActor(obs_size, cfg.algorithm.architecture.hidden_size, act_size)
+        action_agent = DiscreteActor(
+            obs_size, cfg.algorithm.architecture.hidden_size, act_size
+        )
     tr_agent = Agents(train_env_agent, action_agent)
     ev_agent = Agents(eval_env_agent, action_agent)
 
-    critic_agent = TemporalAgent(VAgent(obs_size, cfg.algorithm.architecture.hidden_size))
+    critic_agent = TemporalAgent(
+        VAgent(obs_size, cfg.algorithm.architecture.hidden_size)
+    )
 
     # Get an agent that is executed on a complete workspace
     train_agent = TemporalAgent(tr_agent)
@@ -67,9 +73,15 @@ def compute_critic_loss(cfg, reward, must_bootstrap, v_value):
     # Compute temporal difference
     # target = reward[:-1] + cfg.algorithm.discount_factor * v_value[1:].detach() * must_bootstrap.int()
     # td = target - v_value[:-1]
-    td = gae(v_value, reward, must_bootstrap, cfg.algorithm.discount_factor, cfg.algorithm.gae)
+    td = gae(
+        v_value,
+        reward,
+        must_bootstrap,
+        cfg.algorithm.discount_factor,
+        cfg.algorithm.gae,
+    )
     # Compute critic loss
-    td_error = td ** 2
+    td_error = td**2
     critic_loss = td_error.mean()
     return critic_loss, td
 
@@ -90,7 +102,9 @@ def run_a2c(cfg, max_grad_norm=0.5):
     eval_env_agent = NoAutoResetEnvAgent(cfg, n_envs=cfg.algorithm.nb_evals)
 
     # 3) Create the A2C Agent
-    a2c_agent, eval_agent, critic_agent = create_a2c_agent(cfg, train_env_agent, eval_env_agent)
+    a2c_agent, eval_agent, critic_agent = create_a2c_agent(
+        cfg, train_env_agent, eval_env_agent
+    )
 
     # 5) Configure the workspace to the right dimension
     # Note that no parameter is needed to create the workspace.
@@ -109,9 +123,13 @@ def run_a2c(cfg, max_grad_norm=0.5):
         if epoch > 0:
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
-            a2c_agent(train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True)
+            a2c_agent(
+                train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True
+            )
         else:
-            a2c_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True)
+            a2c_agent(
+                train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True
+            )
 
         # Compute the critic value over the whole workspace
         critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
@@ -120,7 +138,13 @@ def run_a2c(cfg, max_grad_norm=0.5):
         transition_workspace = train_workspace.get_transitions()
 
         v_value, done, truncated, reward, action, action_logp = transition_workspace[
-            "v_value", "env/done", "env/truncated", "env/reward", "action", "action_logprobs"]
+            "v_value",
+            "env/done",
+            "env/truncated",
+            "env/reward",
+            "action",
+            "action_logprobs",
+        ]
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
@@ -132,7 +156,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
         a2c_loss = compute_actor_loss(action_logp, td)
 
         # Compute entropy loss
-        entropy_loss = torch.mean(train_workspace['entropy'])
+        entropy_loss = torch.mean(train_workspace["entropy"])
 
         # Store the losses for tensorboard display
         logger.log_losses(nb_steps, critic_loss, entropy_loss, a2c_loss)
@@ -166,8 +190,21 @@ def run_a2c(cfg, max_grad_norm=0.5):
                 eval_agent.save_model(filename)
                 policy = eval_agent.agent.agents[1]
                 critic = critic_agent.agent
-                plot_policy(policy, eval_env_agent, "./a2c_plots/", cfg.gym_env.env_name, best_reward, stochastic=False)
-                plot_critic(critic, eval_env_agent, "./a2c_plots/", cfg.gym_env.env_name, best_reward)
+                plot_policy(
+                    policy,
+                    eval_env_agent,
+                    "./a2c_plots/",
+                    cfg.gym_env.env_name,
+                    best_reward,
+                    stochastic=False,
+                )
+                plot_critic(
+                    critic,
+                    eval_env_agent,
+                    "./a2c_plots/",
+                    cfg.gym_env.env_name,
+                    best_reward,
+                )
     chrono.stop()
 
 

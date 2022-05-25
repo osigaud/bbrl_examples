@@ -50,12 +50,14 @@ class RandomDiscreteActor(Agent):
 class DiscreteActor(Agent):
     def __init__(self, state_dim, hidden_size, n_actions):
         super().__init__()
-        self.model = build_mlp([state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU())
+        self.model = build_mlp(
+            [state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU()
+        )
 
     def forward(self, t, stochastic, replay=False, **kwargs):
         """
-          Compute the action given either a time step (looking into the workspace)
-          or an observation (in kwargs)
+        Compute the action given either a time step (looking into the workspace)
+        or an observation (in kwargs)
         """
         if "observation" in kwargs:
             observation = kwargs["observation"]
@@ -91,7 +93,9 @@ class DiscreteActor(Agent):
 class ProbAgent(Agent):
     def __init__(self, state_dim, hidden_layers, n_action):
         super().__init__(name="prob_agent")
-        self.model = build_mlp([state_dim] + list(hidden_layers) + [n_action], activation=nn.ReLU())
+        self.model = build_mlp(
+            [state_dim] + list(hidden_layers) + [n_action], activation=nn.ReLU()
+        )
 
     def forward(self, t, **kwargs):
         observation = self.get(("env/env_obs", t))

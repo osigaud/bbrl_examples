@@ -36,9 +36,13 @@ class RLNN(nn.Module):
             tmp = np.product(param.size())
 
             if torch.cuda.is_available():
-                param.data.copy_(torch.from_numpy(params[cpt : cpt + tmp]).view(param.size()).cuda())
+                param.data.copy_(
+                    torch.from_numpy(params[cpt : cpt + tmp]).view(param.size()).cuda()
+                )
             else:
-                param.data.copy_(torch.from_numpy(params[cpt : cpt + tmp]).view(param.size()))
+                param.data.copy_(
+                    torch.from_numpy(params[cpt : cpt + tmp]).view(param.size())
+                )
             cpt += tmp
 
     def get_params(self):
@@ -51,7 +55,9 @@ class RLNN(nn.Module):
         """
         Returns the current gradient
         """
-        return deepcopy(np.hstack([to_numpy(v.grad).flatten() for v in self.parameters()]))
+        return deepcopy(
+            np.hstack([to_numpy(v.grad).flatten() for v in self.parameters()])
+        )
 
     def get_size(self):
         """
@@ -66,7 +72,12 @@ class RLNN(nn.Module):
         if filename is None:
             return
 
-        self.load_state_dict(torch.load("{}/{}.pkl".format(filename, net_name), map_location=lambda storage, loc: storage))
+        self.load_state_dict(
+            torch.load(
+                "{}/{}.pkl".format(filename, net_name),
+                map_location=lambda storage, loc: storage,
+            )
+        )
 
     def save_model(self, output, net_name):
         """
@@ -76,7 +87,9 @@ class RLNN(nn.Module):
 
 
 class Actor(RLNN):
-    def __init__(self, state_dim, action_dim, max_action, layer_norm=False, init=True, **kwargs):
+    def __init__(
+        self, state_dim, action_dim, max_action, layer_norm=False, init=True, **kwargs
+    ):
         super(Actor, self).__init__(state_dim, action_dim, max_action)
 
         self.l1 = nn.Linear(state_dim, 400)
@@ -231,7 +244,9 @@ class PourchotActor(RLNN):
 
         # Update the frozen target models
         for param, target_param in zip(self.parameters(), actor_t.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+            target_param.data.copy_(
+                self.tau * param.data + (1 - self.tau) * target_param.data
+            )
 
 
 class PourchotCritic(RLNN):
@@ -291,7 +306,9 @@ class PourchotCritic(RLNN):
 
         # Update the frozen target models
         for param, target_param in zip(self.parameters(), critic_t.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+            target_param.data.copy_(
+                self.tau * param.data + (1 - self.tau) * target_param.data
+            )
 
 
 class PourchotCriticTD3(RLNN):
@@ -357,7 +374,9 @@ class PourchotCriticTD3(RLNN):
 
         # Select action according to policy and add clipped noise
         noise = np.clip(
-            np.random.normal(0, self.policy_noise, size=(batch_size, self.action_dim)), -self.noise_clip, self.noise_clip
+            np.random.normal(0, self.policy_noise, size=(batch_size, self.action_dim)),
+            -self.noise_clip,
+            self.noise_clip,
         )
         n_actions = actor_t(n_states) + FloatTensor(noise)
         n_actions = n_actions.clamp(-self.max_action, self.max_action)
@@ -372,7 +391,9 @@ class PourchotCriticTD3(RLNN):
         current_Q1, current_Q2 = self(states, actions)
 
         # Compute critic loss
-        critic_loss = nn.MSELoss()(current_Q1, target_Q) + nn.MSELoss()(current_Q2, target_Q)
+        critic_loss = nn.MSELoss()(current_Q1, target_Q) + nn.MSELoss()(
+            current_Q2, target_Q
+        )
 
         # Optimize the critic
         self.optimizer.zero_grad()
@@ -381,4 +402,6 @@ class PourchotCriticTD3(RLNN):
 
         # Update the frozen target models
         for param, target_param in zip(self.parameters(), critic_t.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+            target_param.data.copy_(
+                self.tau * param.data + (1 - self.tau) * target_param.data
+            )

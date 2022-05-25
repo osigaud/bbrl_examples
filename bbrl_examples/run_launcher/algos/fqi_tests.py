@@ -59,7 +59,7 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
     td = target - qvals
     # Compute critic loss
-    td_error = td ** 2
+    td_error = td**2
     critic_loss = td_error.mean()
     return critic_loss, td
 
@@ -75,7 +75,9 @@ def run_fqi(cfg, max_grad_norm=0.5):
     eval_env_agent = NoAutoResetEnvAgent(cfg, n_envs=cfg.algorithm.nb_evals)
 
     # 3) Create the DQN-like Agent
-    train_agent, eval_agent, q_agent = create_fqi_agent(cfg, train_env_agent, eval_env_agent)
+    train_agent, eval_agent, q_agent = create_fqi_agent(
+        cfg, train_env_agent, eval_env_agent
+    )
 
     # 5) Configure the workspace to the right dimension
     # Note that no parameter is needed to create the workspace.
@@ -94,16 +96,21 @@ def run_fqi(cfg, max_grad_norm=0.5):
         if epoch > 0:
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
-            train_agent(train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True)
+            train_agent(
+                train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True
+            )
         else:
-            train_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True)
+            train_agent(
+                train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True
+            )
 
         nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         transition_workspace = train_workspace.get_transitions()
 
         q_values, done, truncated, reward, action = transition_workspace[
-            "q_values", "env/done", "env/truncated", "env/reward", "action"]
+            "q_values", "env/done", "env/truncated", "env/reward", "action"
+        ]
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
@@ -111,7 +118,9 @@ def run_fqi(cfg, max_grad_norm=0.5):
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         # Compute critic loss
-        critic_loss, td = compute_critic_loss(cfg, reward, must_bootstrap, q_values, action)
+        critic_loss, td = compute_critic_loss(
+            cfg, reward, must_bootstrap, q_values, action
+        )
 
         # Store the loss for tensorboard display
         logger.add_log("critic_loss", critic_loss, nb_steps)
@@ -124,7 +133,9 @@ def run_fqi(cfg, max_grad_norm=0.5):
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
             eval_workspace = Workspace()  # Used for evaluation
-            eval_agent(eval_workspace, t=0, stop_variable="env/done", choose_action=True)
+            eval_agent(
+                eval_workspace, t=0, stop_variable="env/done", choose_action=True
+            )
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)

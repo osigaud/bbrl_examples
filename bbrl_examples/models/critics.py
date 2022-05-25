@@ -8,7 +8,9 @@ from bbrl_examples.models.shared_models import build_mlp
 class ContinuousQAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
         super().__init__()
-        self.model = build_mlp([state_dim + action_dim] + list(hidden_layers) + [1], activation=nn.ReLU())
+        self.model = build_mlp(
+            [state_dim + action_dim] + list(hidden_layers) + [1], activation=nn.ReLU()
+        )
 
     def forward(self, t, detach_actions=False, **kwargs):
         obs = self.get(("env/env_obs", t))
@@ -23,18 +25,22 @@ class ContinuousQAgent(Agent):
 class VAgent(Agent):
     def __init__(self, state_dim, hidden_layers):
         super().__init__()
-        self.model = build_mlp([state_dim] + list(hidden_layers) + [1], activation=nn.ReLU())
+        self.model = build_mlp(
+            [state_dim] + list(hidden_layers) + [1], activation=nn.ReLU()
+        )
 
     def forward(self, t, **kwargs):
         observation = self.get(("env/env_obs", t))
         critic = self.model(observation).squeeze(-1)
         self.set(("v_value", t), critic)
 
-        
+
 class DiscreteQAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
-        self.model = build_mlp([state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU())
+        self.model = build_mlp(
+            [state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU()
+        )
 
     def forward(self, t, choose_action=True, **kwargs):
         obs = self.get(("env/env_obs", t))
