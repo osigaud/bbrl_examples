@@ -1,39 +1,29 @@
 import sys
 import os
-import time
-import numpy as np
 
 import gym
 import my_gym
 
-from gym.wrappers import TimeLimit
-from omegaconf import DictConfig, OmegaConf
-from salina import instantiate_class, get_arguments, get_class
-from salina.workspace import Workspace
-from salina.agents import Agents, TemporalAgent
+from omegaconf import DictConfig
+from bbrl import get_arguments, get_class
+from bbrl.workspace import Workspace
+from bbrl.agents import Agents, TemporalAgent
 
-from salina.rl.functionalb import gae
+from bbrl.utils.functionalb import gae
 
-from salina.logger import TFLogger
 import hydra
-
-import copy
-import time
 
 import torch
 import torch.nn as nn
-import torch.autograd as autograd
-from torch.autograd import detect_anomaly
 
-from my_salina_examples.models.actors import TunableVarianceContinuousActor
-from my_salina_examples.models.actors import StateDependentVarianceContinuousActor
-from my_salina_examples.models.actors import ConstantVarianceContinuousActor
-from salina.agents.utils import PrintAgent
-from my_salina_examples.models.actors import DiscreteActor, ProbAgent, ActionAgent
-from my_salina_examples.models.critics import VAgent
-from my_salina_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
-from my_salina_examples.models.loggers import Logger
-from my_salina_examples.chrono import Chrono
+from bbrl_examples.models.actors import TunableVarianceContinuousActor
+from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
+from bbrl_examples.models.actors import ConstantVarianceContinuousActor
+from bbrl_examples.models.actors import DiscreteActor
+from bbrl_examples.models.critics import VAgent
+from bbrl_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
+from bbrl_examples.models.loggers import Logger
+from bbrl.utils.chrono import Chrono
 
 from salina.visu.visu_policies import plot_policy
 from salina.visu.visu_critics import plot_critic

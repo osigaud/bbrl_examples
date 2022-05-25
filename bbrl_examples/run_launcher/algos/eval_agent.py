@@ -1,7 +1,6 @@
 import sys
 import os
 import torch
-import torch.nn as nn
 import numpy as np
 
 import gym
@@ -9,19 +8,8 @@ import my_gym
 
 from omegaconf import OmegaConf
 from salina.workspace import Workspace
-from salina.agent import Agent
-from salina.chrono import Chrono
-from torch.distributions.normal import Normal
-from salina.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
-from salina import instantiate_class, get_arguments, get_class
 
-from my_salina_examples.models.actors import TunableVarianceContinuousActor
-from my_salina_examples.models.actors import StateDependentVarianceContinuousActor
-from my_salina_examples.models.actors import ConstantVarianceContinuousActor
-from my_salina_examples.models.actors import DiscreteActor, ProbAgent, ActionAgent
-from my_salina_examples.models.critics import VAgent
-from my_salina_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
-from my_salina_examples.models.loggers import Logger
+from salina.chrono import Chrono
 
 
 def make_gym_env(max_episode_steps, env_name):

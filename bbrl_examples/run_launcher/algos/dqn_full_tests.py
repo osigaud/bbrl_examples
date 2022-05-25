@@ -1,36 +1,26 @@
 import sys
 import os
-import numpy as np
 
 import copy
-import time
 
+import torch
 import gym
 import my_gym
 
-from gym.wrappers import TimeLimit
-from omegaconf import DictConfig, OmegaConf
-from salina import instantiate_class, get_arguments, get_class
-from salina.workspace import Workspace
-from salina.rl.replay_bufferb import ReplayBuffer
-from salina.agents import Agents, TemporalAgent
-
-from salina.rl.functionalb import gae
+from omegaconf import DictConfig
+from bbrl import get_arguments, get_class
+from bbrl.workspace import Workspace
+from bbrl.utils.replay_buffer import ReplayBuffer
+from bbrl.agents import Agents, TemporalAgent
 
 from salina.logger import TFLogger
 import hydra
 
-
-import torch
-import torch.nn as nn
-import torch.autograd as autograd
-from torch.autograd import detect_anomaly
-
-from my_salina_examples.models.actors import EGreedyActionSelector
-from my_salina_examples.models.critics import DiscreteQAgent
-from my_salina_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
-from my_salina_examples.models.loggers import Logger
-from my_salina_examples.chrono import Chrono
+from bbrl_examples.models.actors import EGreedyActionSelector
+from bbrl_examples.models.critics import DiscreteQAgent
+from bbrl_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
+from bbrl_examples.models.loggers import Logger
+from bbrl.utils.chrono import Chrono
 
 # HYDRA_FULL_ERROR = 1
 

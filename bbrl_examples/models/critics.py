@@ -2,7 +2,7 @@ from salina.agent import Agent
 import torch
 import torch.nn as nn
 
-from my_salina_examples.models.shared_models import build_mlp
+from bbrl_examples.models.shared_models import build_mlp
 
 
 class ContinuousQAgent(Agent):

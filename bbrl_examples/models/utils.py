@@ -1,7 +1,7 @@
-from salina.agent import Agent
-
 import numpy as np
 from random import randrange
+
+from bbrl.agents.agent import Agent
 
 
 def discrete_prob(p):

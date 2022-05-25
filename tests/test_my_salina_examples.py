@@ -1,6 +1,6 @@
-from my_salina_examples.models.salina_actors import ProbAgent, ActionAgent
-from my_salina_examples.models.salina_critics import VAgent, QAgent
-from my_salina_examples.models.salina_envs import EnvAgent
+from bbrl_examples.models.actors import ProbAgent, ActionAgent
+# from bbrl_examples.models.critics import VAgent
+from bbrl_examples.models.envs import AutoResetEnvAgent
 
 cfg = {
     "logger": {"classname": "salina.logger.TFLogger", "log_dir": "./tmp", "every_n_seconds": 10, "verbose": False},
@@ -19,6 +19,6 @@ cfg = {
     },
 }
 
-envAgent = EnvAgent(cfg)
+envAgent = AutoResetEnvAgent(cfg, 1)
 pa = ProbAgent(2, [32], 1)
 aa = ActionAgent()

@@ -1,4 +1,4 @@
-from salina import instantiate_class
+from bbrl import instantiate_class
 
 
 class Logger:
