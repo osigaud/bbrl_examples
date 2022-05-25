@@ -8,7 +8,6 @@ import my_gym
 from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
-from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl.agents import Agents, TemporalAgent
 
 from salina.logger import TFLogger

@@ -1,12 +1,13 @@
-from salina.agent import Agent
 import torch
 import torch.nn as nn
+
+from bbrl.agents.agent import Agent
 
 from bbrl_examples.models.shared_models import build_mlp
 
 
 class ContinuousQAgent(Agent):
-    def __init__(self, state_dim, hidden_layers, action_dim, **kwargs):
+    def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         self.model = build_mlp(
             [state_dim + action_dim] + list(hidden_layers) + [1], activation=nn.ReLU()

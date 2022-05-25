@@ -87,7 +87,7 @@ def compare(v, q, pol):
 # https://stackoverflow.com/questions/26515595/how-does-one-ignore-unexpected-keyword-arguments-passed-to-a-function
 # (response 2)
 # for a more generic response.
-# add decorator pattern to use alois pourchot'agents as salina agents
+# add decorator pattern to use Alois Pourchot's agents as bbrl agents
 
 
 class Salina_Actor_Decorator(Agent):
