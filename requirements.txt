@@ -1,6 +1,6 @@
 torch~=1.11.0
 numpy>=1.19.1
-git+https://github.com/osigaud/salina.git
+git+https://github.com/osigaud/bbrl.git
 gym==0.21.0
 setuptools~=60.2.0
 omegaconf~=2.1.1

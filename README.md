@@ -1,4 +1,4 @@
-The my_salina_examples library contains code of RL algorithms. It is designed mainly for education purposes.
+The bbrl_examples library contains code of RL algorithms built on bbrl. It is designed mainly for education purposes.
 
 ## Installation
 
