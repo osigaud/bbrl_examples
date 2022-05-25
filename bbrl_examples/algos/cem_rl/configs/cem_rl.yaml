@@ -71,7 +71,6 @@ algorithm:
 env:
   classname: utils.make_gym_env
   env_name: Pendulum-v1
-  max_episode_steps:  200
 
 logger:
   classname: salina.logger.TFLogger

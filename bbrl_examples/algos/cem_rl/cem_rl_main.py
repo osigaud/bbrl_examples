@@ -24,8 +24,8 @@ HYDRA_FULL_ERROR = 1
 
 
 # TODO: clean remove this function with better env creation
-def make_gym_env(max_episode_steps, env_name, verbose=False):
-    gym_env = TimeLimit(gym.make(env_name), max_episode_steps=max_episode_steps)
+def make_gym_env(env_name, verbose=False):
+    gym_env = gym.make(env_name)
     if verbose:
         print(
             f"for {env_name}, the low action is {gym_env.action_space.low} and hight is {gym_env.action_space.high}"
