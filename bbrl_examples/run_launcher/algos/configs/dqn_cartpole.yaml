@@ -1,0 +1,31 @@
+
+    save_best: True
+
+    logger:
+      classname: salina.logger.TFLogger
+      log_dir: ./a2c_logs/
+      verbose: False
+      every_n_seconds: 10
+
+    algorithm:
+      seed: 4
+      epsilon: 0.02
+      n_envs: 1
+      n_steps: 100
+      batch_size: 64
+      eval_interval: 2000
+      target_critic_update: 10000
+      nb_evals: 10
+      gae: 0.8
+      max_epochs: 10000
+      discount_factor: 0.99
+      architecture:
+        hidden_size: [256, 256]
+
+    gym_env:
+      classname: __main__.make_gym_env
+      env_name: CartPole-v1
+
+    optimizer:
+      classname: torch.optim.Adam
+      lr: 2.3e-3
