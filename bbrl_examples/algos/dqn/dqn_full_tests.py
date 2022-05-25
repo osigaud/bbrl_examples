@@ -13,7 +13,7 @@ from bbrl.workspace import Workspace
 from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl.agents import Agents, TemporalAgent
 
-from salina.logger import TFLogger
+from bbrl.utils.logger import TFLogger
 import hydra
 
 from bbrl_examples.models.actors import EGreedyActionSelector

@@ -13,7 +13,7 @@ from bbrl.workspace import Workspace
 from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl.agents import Agents, TemporalAgent
 
-from salina.logger import TFLogger
+from bbrl.utils.logger import TFLogger
 import hydra
 
 from bbrl_examples.models.actors import EGreedyActionSelector
@@ -88,6 +88,7 @@ def run_dqn(cfg, max_grad_norm=0.5):
     # In the training loop, calling the agent() and critic_agent()
     # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
+    rb = ReplayBuffer(max_size=1e5)
 
     # 6) Configure the optimizer over the a2c agent
     optimizer = setup_optimizers(cfg, q_agent)
@@ -112,15 +113,21 @@ def run_dqn(cfg, max_grad_norm=0.5):
         nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         transition_workspace = train_workspace.get_transitions()
+        rb.put(transition_workspace)
 
-        q_values, done, truncated, reward, action = transition_workspace[
+        rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
+
+        # The q agent needs to be executed on the rb_workspace workspace (gradients are removed in workspace).
+        q_agent(rb_workspace, t=0, n_steps=2, choose_action=False)
+
+        q_values, done, truncated, reward, action = rb_workspace[
             "q_values", "env/done", "env/truncated", "env/reward", "action"
         ]
 
         with torch.no_grad():
-            target_q_agent(transition_workspace, t=0, n_steps=2, stochastic=True)
+            target_q_agent(rb_workspace, t=0, n_steps=2, stochastic=True)
 
-        target_q_values = transition_workspace["q_values"]
+        target_q_values = rb_workspace["q_values"]
         # assert torch.equal(q_values, target_q_values), "values differ"
 
         # Determines whether values of the critic should be propagated

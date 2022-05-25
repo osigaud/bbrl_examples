@@ -25,8 +25,8 @@ from bbrl_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
 from bbrl_examples.models.loggers import Logger
 from bbrl.utils.chrono import Chrono
 
-from salina.visu.visu_policies import plot_policy
-from salina.visu.visu_critics import plot_critic
+from bbrl.visu.visu_policies import plot_policy
+from bbrl.visu.visu_critics import plot_critic
 
 # HYDRA_FULL_ERROR = 1
 

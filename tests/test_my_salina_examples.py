@@ -5,7 +5,7 @@ from bbrl_examples.models.envs import AutoResetEnvAgent
 
 cfg = {
     "logger": {
-        "classname": "salina.logger.TFLogger",
+        "classname": "bbrl.utils.logger.TFLogger",
         "log_dir": "./tmp",
         "every_n_seconds": 10,
         "verbose": False,
