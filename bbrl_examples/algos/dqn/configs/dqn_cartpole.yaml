@@ -2,7 +2,7 @@
     save_best: True
 
     logger:
-      classname: salina.logger.TFLogger
+      classname: bbrl.utils.logger.TFLogger
       log_dir: ./a2c_logs/
       verbose: False
       every_n_seconds: 10

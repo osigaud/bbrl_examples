@@ -24,7 +24,7 @@
 
     gym_env:
       classname: __main__.make_gym_env
-      env_name: CartPole-v1
+      env_name: RocketLander-v0
 
     optimizer:
       classname: torch.optim.Adam

@@ -208,9 +208,12 @@ def run_a2c(cfg, max_grad_norm=0.5):
     chrono.stop()
 
 
-@hydra.main(config_path="./configs/", config_name="a2c_pendulum.yaml")
-# @hydra.main(config_path="./configs/", config_name="a2c_cartpolecontinuous.yaml")
-# @hydra.main(config_path="./configs/", config_name="a2c_cartpole.yaml")
+@hydra.main(
+    config_path="./configs/", config_name="a2c_pendulum.yaml", version_base="1.1"
+)
+# @hydra.main(config_path="./configs/", config_name="a2c_cartpolecontinuous.yaml", version_base="1.1")
+# @hydra.main(config_path="./configs/", config_name="a2c_cartpole.yaml", version_base="1.1")
+# @hydra.main(config_path="./configs/", config_name="a2c_rocket_lander.yaml", version_base="1.1")
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     torch.manual_seed(cfg.algorithm.seed)
