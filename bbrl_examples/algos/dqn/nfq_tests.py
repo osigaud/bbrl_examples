@@ -1,6 +1,8 @@
 import sys
 import os
 
+import copy
+
 import torch
 import gym
 import my_gym
@@ -8,9 +10,10 @@ import my_gym
 from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
+from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl.agents import Agents, TemporalAgent
 
-# from bbrl.utils.logger import TFLogger
+from bbrl.utils.logger import TFLogger
 import hydra
 
 from bbrl_examples.models.actors import EGreedyActionSelector
@@ -22,12 +25,14 @@ from bbrl.utils.chrono import Chrono
 # HYDRA_FULL_ERROR = 1
 
 
-# Create the FQI Agent
-def create_fqi_agent(cfg, train_env_agent, eval_env_agent):
+# Create the DQN Agent
+def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
     critic = DiscreteQAgent(obs_size, cfg.algorithm.architecture.hidden_size, act_size)
+    target_critic = copy.deepcopy(critic)
     explorer = EGreedyActionSelector(cfg.algorithm.epsilon)
     q_agent = TemporalAgent(critic)
+    target_q_agent = TemporalAgent(target_critic)
     tr_agent = Agents(train_env_agent, critic, explorer)
     ev_agent = Agents(eval_env_agent, critic)
 
@@ -35,7 +40,7 @@ def create_fqi_agent(cfg, train_env_agent, eval_env_agent):
     train_agent = TemporalAgent(tr_agent)
     eval_agent = TemporalAgent(ev_agent)
     train_agent.seed(cfg.algorithm.seed)
-    return train_agent, eval_agent, q_agent
+    return train_agent, eval_agent, q_agent, target_q_agent
 
 
 def make_gym_env(env_name):
@@ -60,10 +65,10 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute critic loss
     td_error = td**2
     critic_loss = td_error.mean()
-    return critic_loss, td
+    return critic_loss
 
 
-def run_fqi(cfg, max_grad_norm=0.5):
+def run_dqn(cfg, max_grad_norm=0.5):
     # 1)  Build the  logger
     chrono = Chrono()
     logger = Logger(cfg)
@@ -74,7 +79,7 @@ def run_fqi(cfg, max_grad_norm=0.5):
     eval_env_agent = NoAutoResetEnvAgent(cfg, n_envs=cfg.algorithm.nb_evals)
 
     # 3) Create the DQN-like Agent
-    train_agent, eval_agent, q_agent = create_fqi_agent(
+    train_agent, eval_agent, q_agent, target_q_agent = create_dqn_agent(
         cfg, train_env_agent, eval_env_agent
     )
 
@@ -83,6 +88,7 @@ def run_fqi(cfg, max_grad_norm=0.5):
     # In the training loop, calling the agent() and critic_agent()
     # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
+    rb = ReplayBuffer(max_size=1e5)
 
     # 6) Configure the optimizer over the a2c agent
     optimizer = setup_optimizers(cfg, q_agent)
@@ -106,8 +112,14 @@ def run_fqi(cfg, max_grad_norm=0.5):
         nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         transition_workspace = train_workspace.get_transitions()
+        rb.put(transition_workspace)
 
-        q_values, done, truncated, reward, action = transition_workspace[
+        rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
+
+        # The q agent needs to be executed on the rb_workspace workspace (gradients are removed in workspace).
+        q_agent(rb_workspace, t=0, n_steps=2, choose_action=False)
+
+        q_values, done, truncated, reward, action = rb_workspace[
             "q_values", "env/done", "env/truncated", "env/reward", "action"
         ]
 
@@ -117,9 +129,7 @@ def run_fqi(cfg, max_grad_norm=0.5):
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         # Compute critic loss
-        critic_loss, td = compute_critic_loss(
-            cfg, reward, must_bootstrap, q_values, action
-        )
+        critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, q_values, action)
 
         # Store the loss for tensorboard display
         logger.add_log("critic_loss", critic_loss, nb_steps)
@@ -141,20 +151,22 @@ def run_fqi(cfg, max_grad_norm=0.5):
             print(f"epoch: {epoch}, reward: {mean}")
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
-                directory = "./fqi_critic/"
+                directory = "./dqn_critic/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "fqi_" + str(mean.item()) + ".agt"
+                filename = directory + "dqn_" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
                 # critic = q_agent.agent
     chrono.stop()
 
 
-@hydra.main(config_path="./configs/", config_name="fqi_cartpole.yaml")
+@hydra.main(
+    config_path="./configs/", config_name="nfq_cartpole.yaml", version_base="1.1"
+)
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     torch.manual_seed(cfg.algorithm.seed)
-    run_fqi(cfg)
+    run_dqn(cfg)
 
 
 if __name__ == "__main__":
