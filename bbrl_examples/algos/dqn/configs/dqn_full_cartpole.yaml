@@ -3,19 +3,21 @@
 
     logger:
       classname: bbrl.utils.logger.TFLogger
-      log_dir: ./dqn_logs/
+      log_dir: ./dqn_full_logs/
       verbose: False
       every_n_seconds: 10
 
     algorithm:
       seed: 4
       nb_seeds: 10
-      epsilon: 0.06
+      epsilon: 0.16
+      epsilon_decay: 1.2e-7
       max_grad_norm: 0.5
       n_envs: 1
       n_steps: 100
       batch_size: 64
       eval_interval: 2000
+      start_step: 1000
       target_critic_update: 10000
       nb_evals: 10
       gae: 0.8

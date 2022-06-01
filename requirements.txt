@@ -1,11 +1,11 @@
-protobuf=3.20.1
+protobuf~=3.20.1
 torch~=1.11.0
 numpy>=1.19.1
-git+https://github.com/osigaud/bbrl.git
+bbrl @ git+https://github.com/osigaud/bbrl.git
 gym==0.21.0
 setuptools~=60.2.0
 omegaconf~=2.1.1
-git+https://github.com/osigaud/my_gym.git
+my_gym @ git+https://github.com/osigaud/my_gym.git
 matplotlib~=3.5.2
 pandas
 tensorboard

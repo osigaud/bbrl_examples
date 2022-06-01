@@ -16,7 +16,8 @@ import hydra
 from bbrl_examples.models.actors import EGreedyActionSelector
 from bbrl_examples.models.critics import DiscreteQAgent
 from bbrl_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
-from bbrl_examples.models.loggers import Logger
+from bbrl_examples.models.loggers import Logger, RewardLogger
+from bbrl_examples.models.plotters import Plotter
 from bbrl.utils.chrono import Chrono
 
 # HYDRA_FULL_ERROR = 1
@@ -63,9 +64,8 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     return critic_loss, td
 
 
-def run_dqn(cfg, max_grad_norm=0.5):
+def run_dqn(cfg, reward_logger):
     # 1)  Build the  logger
-    chrono = Chrono()
     logger = Logger(cfg)
     best_reward = -10e9
 
@@ -126,7 +126,9 @@ def run_dqn(cfg, max_grad_norm=0.5):
 
         optimizer.zero_grad()
         critic_loss.backward()
-        torch.nn.utils.clip_grad_norm_(q_agent.parameters(), max_grad_norm)
+        torch.nn.utils.clip_grad_norm_(
+            q_agent.parameters(), cfg.algorithm.max_grad_norm
+        )
         optimizer.step()
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
@@ -139,6 +141,7 @@ def run_dqn(cfg, max_grad_norm=0.5):
             mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)
             print(f"epoch: {epoch}, reward: {mean}")
+            reward_logger.add(nb_steps, mean)
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
                 directory = "./dqn0_critic/"
@@ -146,17 +149,38 @@ def run_dqn(cfg, max_grad_norm=0.5):
                     os.makedirs(directory)
                 filename = directory + "dqn0_" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
-                # critic = q_agent.agent
+
+
+def main_loop(cfg):
+    chrono = Chrono()
+    logdir = "./plot/"
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+    reward_logger = RewardLogger(
+        logdir + "dqn_no_rb_no_target.steps", logdir + "dqn_no_rb_no_target.rwd"
+    )
+    for seed in range(cfg.algorithm.nb_seeds):
+        cfg.algorithm.seed = seed
+        run_dqn(cfg, reward_logger)
+        if seed < cfg.algorithm.nb_seeds - 1:
+            reward_logger.new_episode()
+    reward_logger.save()
     chrono.stop()
+    plotter = Plotter(
+        logdir + "dqn_no_rb_no_target.steps", logdir + "dqn_no_rb_no_target.rwd"
+    )
+    plotter.plot_reward("nfq", cfg.gym_env.env_name)
 
 
 @hydra.main(
-    config_path="./configs/", config_name="dqn_no_replay_no_target_cartpole.yaml"
+    config_path="./configs/",
+    config_name="dqn_no_replay_no_target_cartpole.yaml",
+    version_base="1.1",
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     torch.manual_seed(cfg.algorithm.seed)
-    run_dqn(cfg)
+    main_loop(cfg)
 
 
 if __name__ == "__main__":

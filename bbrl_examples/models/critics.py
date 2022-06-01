@@ -9,6 +9,7 @@ from bbrl_examples.models.shared_models import build_mlp
 class ContinuousQAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
+        self.is_q_function = True
         self.model = build_mlp(
             [state_dim + action_dim] + list(hidden_layers) + [1], activation=nn.ReLU()
         )
@@ -22,10 +23,16 @@ class ContinuousQAgent(Agent):
         q_value = self.model(osb_act)
         self.set(("q_value", t), q_value)
 
+    def predict_value(self, obs, action):
+        osb_act = torch.cat((obs, action), dim=1)
+        q_value = self.model(osb_act)
+        return q_value
+
 
 class VAgent(Agent):
     def __init__(self, state_dim, hidden_layers):
         super().__init__()
+        self.is_q_function = False
         self.model = build_mlp(
             [state_dim] + list(hidden_layers) + [1], activation=nn.ReLU()
         )
@@ -39,6 +46,7 @@ class VAgent(Agent):
 class DiscreteQAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
+        self.is_q_function = True
         self.model = build_mlp(
             [state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU()
         )
@@ -50,3 +58,16 @@ class DiscreteQAgent(Agent):
         if choose_action:
             action = q_values.argmax(1)
             self.set(("action", t), action)
+
+    def predict_action(self, obs, stochastic):
+        q_values = self.model(obs).squeeze(-1)
+        if stochastic:
+            probs = torch.softmax(q_values, dim=-1)
+            action = torch.distributions.Categorical(probs).sample()
+        else:
+            action = q_values.argmax(0)
+        return action
+
+    def predict_value(self, obs, action):
+        q_values = self.model(obs).squeeze(-1)
+        return q_values[0][action]

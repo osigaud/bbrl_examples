@@ -9,13 +9,15 @@
 
     algorithm:
       seed: 5
-      epsilon: 0.02
+      nb_seeds: 10
+      epsilon: 0.06
       n_envs: 1
       n_steps: 100
+      max_grad_norm: 0.5
       eval_interval: 2000
       nb_evals: 10
       gae: 0.8
-      max_epochs: 5000
+      max_epochs: 10000
       discount_factor: 0.99
       architecture:
         hidden_size: [256, 256]
