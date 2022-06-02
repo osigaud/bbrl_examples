@@ -4,14 +4,16 @@ import os
 import torch
 import gym
 import my_gym
+import hydra
 
 from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
 from bbrl.agents import Agents, TemporalAgent
 
-# from bbrl.utils.logger import TFLogger
-import hydra
+from bbrl.visu.visu_policies import plot_policy
+from bbrl.visu.visu_critics import plot_critic
+
 
 from bbrl_examples.models.actors import EGreedyActionSelector
 from bbrl_examples.models.critics import DiscreteQAgent
@@ -27,7 +29,7 @@ from bbrl.utils.chrono import Chrono
 def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
     critic = DiscreteQAgent(obs_size, cfg.algorithm.architecture.hidden_size, act_size)
-    explorer = EGreedyActionSelector(cfg.algorithm.epsilon)
+    explorer = EGreedyActionSelector(cfg.algorithm.epsilon_init)
     q_agent = TemporalAgent(critic)
     tr_agent = Agents(train_env_agent, critic, explorer)
     ev_agent = Agents(eval_env_agent, critic)
@@ -144,11 +146,28 @@ def run_dqn(cfg, reward_logger):
             reward_logger.add(nb_steps, mean)
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
-                directory = "./dqn0_critic/"
+                directory = "./dqn_critic/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "dqn0_" + str(mean.item()) + ".agt"
+                filename = directory + "dqn_" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
+                if cfg.plot_agents:
+                    policy = eval_agent.agent.agents[1]
+                    plot_policy(
+                        policy,
+                        eval_env_agent,
+                        "./dqn_plots/",
+                        cfg.gym_env.env_name,
+                        best_reward,
+                        stochastic=False,
+                    )
+                    plot_critic(
+                        policy,
+                        eval_env_agent,
+                        "./dqn_plots/",
+                        cfg.gym_env.env_name,
+                        best_reward,
+                    )
 
 
 def main_loop(cfg):

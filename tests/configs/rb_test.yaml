@@ -1,0 +1,25 @@
+
+    save_best: True
+
+    logger:
+      classname: bbrl.utils.logger.TFLogger
+      log_dir: ./rb_logs/
+      verbose: False
+      every_n_seconds: 10
+
+    algorithm:
+      seed: 4
+      n_envs: 1
+      n_steps: 4
+      batch_size: 10
+      max_epochs: 10
+      architecture:
+        hidden_size: [25, 25]
+
+    gym_env:
+      classname: __main__.make_gym_env
+      env_name: LineMDP-v0
+
+    optimizer:
+      classname: torch.optim.Adam
+      lr: 2.3e-3

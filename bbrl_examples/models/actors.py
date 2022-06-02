@@ -102,8 +102,7 @@ class ProbAgent(Agent):
         observation = self.get(("env/env_obs", t))
         scores = self.model(observation)
         action_probs = torch.softmax(scores, dim=-1)
-        if torch.any(torch.isnan(action_probs)):
-            print("Nan Here")
+        assert not torch.any(torch.isnan(action_probs)), "Nan Here"
         self.set(("action_probs", t), action_probs)
         entropy = torch.distributions.Categorical(action_probs).entropy()
         self.set(("entropy", t), entropy)

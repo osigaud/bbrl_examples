@@ -1,5 +1,5 @@
-
-    save_best: True
+    save_best: False
+    plot_agents: False
 
     logger:
       classname: bbrl.utils.logger.TFLogger
@@ -10,7 +10,7 @@
     algorithm:
       seed: 4
       nb_seeds: 10
-      epsilon: 0.06
+      epsilon_init: 0.16
       max_grad_norm: 0.5
       n_envs: 1
       n_steps: 100
@@ -19,7 +19,7 @@
       target_critic_update: 10000
       nb_evals: 10
       gae: 0.8
-      max_epochs: 10000
+      max_epochs: 2500
       discount_factor: 0.99
       architecture:
         hidden_size: [256, 256]
