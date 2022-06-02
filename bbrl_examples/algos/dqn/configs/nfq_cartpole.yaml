@@ -11,7 +11,7 @@
       seed: 4
       nb_seeds: 10
       max_grad_norm: 0.5
-      epsilon_init: 0.16
+      epsilon_init: 0.05
       n_envs: 1
       n_steps: 100
       batch_size: 64

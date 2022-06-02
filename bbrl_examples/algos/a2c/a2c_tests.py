@@ -23,6 +23,7 @@ from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.critics import VAgent
 from bbrl_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
 from bbrl_examples.models.loggers import Logger
+from bbrl_examples.wrappers.wrappers import RocketLanderWrapper
 from bbrl.utils.chrono import Chrono
 
 from bbrl.visu.visu_policies import plot_policy
@@ -59,6 +60,10 @@ def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
 
 def make_gym_env(env_name):
     return gym.make(env_name)
+
+
+def make_rl_gym_env(env_name):
+    return RocketLanderWrapper(gym.make(env_name))
 
 
 # Configure the optimizer over the a2c agent
@@ -190,30 +195,31 @@ def run_a2c(cfg, max_grad_norm=0.5):
                 eval_agent.save_model(filename)
                 policy = eval_agent.agent.agents[1]
                 critic = critic_agent.agent
-                plot_policy(
-                    policy,
-                    eval_env_agent,
-                    "./a2c_plots/",
-                    cfg.gym_env.env_name,
-                    best_reward,
-                    stochastic=False,
-                )
-                plot_critic(
-                    critic,
-                    eval_env_agent,
-                    "./a2c_plots/",
-                    cfg.gym_env.env_name,
-                    best_reward,
-                )
+                if cfg.plot_agents:
+                    plot_policy(
+                        policy,
+                        eval_env_agent,
+                        "./a2c_plots/",
+                        cfg.gym_env.env_name,
+                        best_reward,
+                        stochastic=False,
+                    )
+                    plot_critic(
+                        critic,
+                        eval_env_agent,
+                        "./a2c_plots/",
+                        cfg.gym_env.env_name,
+                        best_reward,
+                    )
     chrono.stop()
 
 
-@hydra.main(
-    config_path="./configs/", config_name="a2c_pendulum.yaml", version_base="1.1"
-)
+# @hydra.main(config_path="./configs/", config_name="a2c_pendulum.yaml", version_base="1.1")
 # @hydra.main(config_path="./configs/", config_name="a2c_cartpolecontinuous.yaml", version_base="1.1")
 # @hydra.main(config_path="./configs/", config_name="a2c_cartpole.yaml", version_base="1.1")
-# @hydra.main(config_path="./configs/", config_name="a2c_rocket_lander.yaml", version_base="1.1")
+@hydra.main(
+    config_path="./configs/", config_name="a2c_rocket_lander.yaml", version_base="1.1"
+)
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     torch.manual_seed(cfg.algorithm.seed)

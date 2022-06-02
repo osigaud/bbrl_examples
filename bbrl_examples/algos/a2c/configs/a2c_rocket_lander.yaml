@@ -1,5 +1,5 @@
-
     save_best: True
+    plot_agents: True
 
     logger:
       classname: bbrl.utils.logger.TFLogger
@@ -20,10 +20,10 @@
       critic_coef: 0.6
       a2c_coef: 1
       architecture:
-        hidden_size: [25, 25]
+        hidden_size: [256, 256]
 
     gym_env:
-      classname: __main__.make_gym_env
+      classname: __main__.make_rl_gym_env
       env_name: RocketLander-v0
 
     optimizer:

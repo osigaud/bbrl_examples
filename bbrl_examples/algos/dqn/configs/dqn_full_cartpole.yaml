@@ -10,8 +10,8 @@
     algorithm:
       seed: 4
       nb_seeds: 10
-      epsilon_init: 0.16
-      epsilon_end: 0.04
+      epsilon_init: 0.05
+      epsilon_end: 0.02
       max_grad_norm: 0.5
       n_envs: 1
       n_steps: 100

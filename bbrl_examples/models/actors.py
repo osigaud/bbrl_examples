@@ -138,6 +138,7 @@ class TunableVarianceContinuousActor(Agent):
     def forward(self, t, stochastic, **kwargs):
         obs = self.get(("env/env_obs", t))
         mean = self.model(obs)
+        print(mean, self.std_param)
         dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
         self.set(("entropy", t), dist.entropy())
         if stochastic:

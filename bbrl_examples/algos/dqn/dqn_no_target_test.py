@@ -28,14 +28,14 @@ from bbrl.utils.chrono import Chrono
 # HYDRA_FULL_ERROR = 1
 
 
+# Should be equivalent to NFQ
+
 # Create the DQN Agent
 def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
     critic = DiscreteQAgent(obs_size, cfg.algorithm.architecture.hidden_size, act_size)
-    target_critic = copy.deepcopy(critic)
     explorer = EGreedyActionSelector(cfg.algorithm.epsilon_init)
     q_agent = TemporalAgent(critic)
-    target_q_agent = TemporalAgent(target_critic)
     tr_agent = Agents(train_env_agent, critic, explorer)
     ev_agent = Agents(eval_env_agent, critic)
 
@@ -43,7 +43,7 @@ def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
     train_agent = TemporalAgent(tr_agent)
     eval_agent = TemporalAgent(ev_agent)
     train_agent.seed(cfg.algorithm.seed)
-    return train_agent, eval_agent, q_agent, target_q_agent
+    return train_agent, eval_agent, q_agent
 
 
 def make_gym_env(env_name):
@@ -58,9 +58,9 @@ def setup_optimizers(cfg, q_agent):
     return optimizer
 
 
-def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, action):
+def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute temporal difference
-    max_q = target_q_values[1].max(-1)[0].detach()
+    max_q = q_values[1].max(-1)[0].detach()
     target = reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
     act = action[0].unsqueeze(-1)
     qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
@@ -71,7 +71,7 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, 
     return critic_loss
 
 
-def run_dqn(cfg, reward_logger):
+def run_dqn_no_target(cfg, reward_logger):
     # 1)  Build the  logger
     logger = Logger(cfg)
     best_reward = -10e9
@@ -81,7 +81,7 @@ def run_dqn(cfg, reward_logger):
     eval_env_agent = NoAutoResetEnvAgent(cfg, n_envs=cfg.algorithm.nb_evals)
 
     # 3) Create the DQN-like Agent
-    train_agent, eval_agent, q_agent, target_q_agent = create_dqn_agent(
+    train_agent, eval_agent, q_agent = create_dqn_agent(
         cfg, train_env_agent, eval_env_agent
     )
 
@@ -96,7 +96,6 @@ def run_dqn(cfg, reward_logger):
     optimizer = setup_optimizers(cfg, q_agent)
     nb_steps = 0
     tmp_steps = 0
-    tmp_steps2 = 0
 
     # 7) Training loop
     for epoch in range(cfg.algorithm.max_epochs):
@@ -126,10 +125,6 @@ def run_dqn(cfg, reward_logger):
             "q_values", "env/done", "env/truncated", "env/reward", "action"
         ]
 
-        with torch.no_grad():
-            target_q_agent(rb_workspace, t=0, n_steps=2, stochastic=True)
-
-        target_q_values = rb_workspace["q_values"]
         # assert torch.equal(q_values, target_q_values), "values differ"
 
         # Determines whether values of the critic should be propagated
@@ -138,9 +133,7 @@ def run_dqn(cfg, reward_logger):
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         # Compute critic loss
-        critic_loss = compute_critic_loss(
-            cfg, reward, must_bootstrap, q_values, target_q_values, action
-        )
+        critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, q_values, action)
 
         # Store the loss for tensorboard display
         logger.add_log("critic_loss", critic_loss, nb_steps)
@@ -151,9 +144,6 @@ def run_dqn(cfg, reward_logger):
             q_agent.parameters(), cfg.algorithm.max_grad_norm
         )
         optimizer.step()
-        if nb_steps - tmp_steps2 > cfg.algorithm.target_critic_update:
-            tmp_steps2 = nb_steps
-            target_q_agent.agent = copy.deepcopy(q_agent.agent)
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
@@ -197,16 +187,18 @@ def main_loop(cfg):
     logdir = "./plot/"
     if not os.path.exists(logdir):
         os.makedirs(logdir)
-    reward_logger = RewardLogger(logdir + "dqn_rb.steps", logdir + "dqn_rb.rwd")
+    reward_logger = RewardLogger(
+        logdir + "dqn_no_target.steps", logdir + "dqn_no_target.rwd"
+    )
     for seed in range(cfg.algorithm.nb_seeds):
         cfg.algorithm.seed = seed
-        run_dqn(cfg, reward_logger)
+        run_dqn_no_target(cfg, reward_logger)
         if seed < cfg.algorithm.nb_seeds - 1:
             reward_logger.new_episode()
     reward_logger.save()
     chrono.stop()
-    plotter = Plotter(logdir + "dqn_rb.steps", logdir + "dqn_rb.rwd")
-    plotter.plot_reward("nfq", cfg.gym_env.env_name)
+    plotter = Plotter(logdir + "dqn_no_target.steps", logdir + "dqn_no_target.rwd")
+    plotter.plot_reward("dqn no target", cfg.gym_env.env_name)
 
 
 @hydra.main(

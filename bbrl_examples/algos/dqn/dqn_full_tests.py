@@ -212,7 +212,7 @@ def main_loop(cfg):
     reward_logger.save()
     chrono.stop()
     plotter = Plotter(logdir + "dqn_full.steps", logdir + "dqn_full.rwd")
-    plotter.plot_reward("nfq", cfg.gym_env.env_name)
+    plotter.plot_reward("dqn full", cfg.gym_env.env_name)
 
 
 @hydra.main(
