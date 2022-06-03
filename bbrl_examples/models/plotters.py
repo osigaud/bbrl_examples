@@ -120,7 +120,16 @@ class CommonPlotter:
         _, ax = plt.subplots(figsize=(9, 6))
         formatter = FuncFormatter(format_num)
 
-        colors = ["#09b542", "#008fd5", "#fc4f30", "#e5ae38", "#e5ae38", "#810f7c"]
+        colors = [
+            "#09b542",
+            "#008fd5",
+            "#fc4f30",
+            "#e5ae38",
+            "#351238",
+            "#810f7c",
+            "#320f4c",
+            "#622f9a",
+        ]
         cpt = 0
 
         listdir = os.listdir(self.logdir)

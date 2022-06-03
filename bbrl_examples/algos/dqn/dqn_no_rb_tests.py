@@ -123,7 +123,12 @@ def run_dqn_no_rb(cfg, reward_logger):
             target_q_agent(transition_workspace, t=0, n_steps=2, stochastic=True)
 
         target_q_values = transition_workspace["q_values"]
-        # assert torch.equal(q_values, target_q_values), "values differ"
+        if epoch == 0:
+            with torch.no_grad():
+                tmp = torch.clone(q_values)
+            assert torch.equal(
+                tmp, target_q_values
+            ), f"values differ: {tmp} vs {target_q_values}"
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
