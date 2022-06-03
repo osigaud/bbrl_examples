@@ -16,7 +16,7 @@ class EGreedyActionSelector(Agent):
         q_values = self.get(("q_values", t))
         nb_actions = q_values.size()[1]
         size = q_values.size()[0]
-        is_random = torch.rand(size).lt(self.epsilon * (1 - self.decay) * t).float()
+        is_random = torch.rand(size).lt(self.epsilon * (1 - self.decay * t)).float()
         random_action = torch.randint(low=0, high=nb_actions, size=(size,))
         max_action = q_values.max(1)[1]
         action = is_random * random_action + (1 - is_random) * max_action
@@ -130,15 +130,14 @@ class TunableVarianceContinuousActor(Agent):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(layers, activation=nn.ReLU())
-        init_variance = torch.randn(action_dim, 1)
-        # print("init_variance:", init_variance)
+        init_variance = torch.randn(action_dim, 1).transpose(0, 1)
         self.std_param = nn.parameter.Parameter(init_variance)
         self.soft_plus = torch.nn.Softplus()
 
     def forward(self, t, stochastic, **kwargs):
         obs = self.get(("env/env_obs", t))
         mean = self.model(obs)
-        print(mean, self.std_param)
+        # print(mean, self.std_param)
         dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
         self.set(("entropy", t), dist.entropy())
         if stochastic:

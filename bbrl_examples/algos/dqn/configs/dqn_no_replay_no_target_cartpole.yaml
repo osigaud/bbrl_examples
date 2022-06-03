@@ -10,7 +10,7 @@
     algorithm:
       seed: 5
       nb_seeds: 10
-      epsilon_init: 0.05
+      epsilon_init: 0.02
       n_envs: 1
       n_steps: 100
       max_grad_norm: 0.5
