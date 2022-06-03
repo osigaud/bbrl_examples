@@ -202,6 +202,7 @@ def main_loop(cfg):
     )
     for seed in range(cfg.algorithm.nb_seeds):
         cfg.algorithm.seed = seed
+        torch.manual_seed(cfg.algorithm.seed)
         run_dqn(cfg, reward_logger)
         if seed < cfg.algorithm.nb_seeds - 1:
             reward_logger.new_episode()
@@ -216,7 +217,6 @@ def main_loop(cfg):
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
-    torch.manual_seed(cfg.algorithm.seed)
     main_loop(cfg)
 
 

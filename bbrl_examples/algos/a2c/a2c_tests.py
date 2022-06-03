@@ -192,8 +192,8 @@ def run_a2c(cfg, max_grad_norm=0.5):
                 if not os.path.exists(directory):
                     os.makedirs(directory)
                 filename = directory + "a2c_" + str(mean.item()) + ".agt"
-                eval_agent.save_model(filename)
                 policy = eval_agent.agent.agents[1]
+                policy.save_model(filename)
                 critic = critic_agent.agent
                 if cfg.plot_agents:
                     plot_policy(

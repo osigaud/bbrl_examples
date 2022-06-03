@@ -34,10 +34,7 @@ def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
     critic = DiscreteQAgent(obs_size, cfg.algorithm.architecture.hidden_size, act_size)
     target_critic = copy.deepcopy(critic)
-    epsilon_decay = (cfg.algorithm.epsilon_init - cfg.algorithm.epsilon_end) / (
-        cfg.algorithm.max_epochs * cfg.algorithm.n_steps * cfg.algorithm.n_envs
-    )
-    explorer = EGreedyActionSelector(cfg.algorithm.epsilon_init, epsilon_decay)
+    explorer = EGreedyActionSelector(cfg.algorithm.epsilon_init)
     q_agent = TemporalAgent(critic)
     target_q_agent = TemporalAgent(target_critic)
     tr_agent = Agents(train_env_agent, critic, explorer)
@@ -105,6 +102,10 @@ def run_dqn_full(cfg, reward_logger):
     # 7) Training loop
     for epoch in range(cfg.algorithm.max_epochs):
         # Execute the agent in the workspace
+        delta = (
+            cfg.algorithm.epsilon_init - cfg.algorithm.epsilon_end
+        ) / cfg.algorithm.max_epochs
+        train_agent.agent.agents[2].epsilon = cfg.algorithm.epsilon_init - delta * epoch
         if epoch > 0:
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
@@ -206,6 +207,7 @@ def main_loop(cfg):
     reward_logger = RewardLogger(logdir + "dqn_full.steps", logdir + "dqn_full.rwd")
     for seed in range(cfg.algorithm.nb_seeds):
         cfg.algorithm.seed = seed
+        torch.manual_seed(cfg.algorithm.seed)
         run_dqn_full(cfg, reward_logger)
         if seed < cfg.algorithm.nb_seeds - 1:
             reward_logger.new_episode()
@@ -220,7 +222,6 @@ def main_loop(cfg):
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
-    torch.manual_seed(cfg.algorithm.seed)
     main_loop(cfg)
 
 
