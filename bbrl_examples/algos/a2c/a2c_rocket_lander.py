@@ -17,8 +17,6 @@ import torch
 import torch.nn as nn
 
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
-from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
-from bbrl_examples.models.actors import ConstantVarianceContinuousActor
 from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.critics import VAgent
 from bbrl_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
@@ -58,8 +56,8 @@ def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
     return train_agent, eval_agent, critic_agent
 
 
-def make_gym_env(env_name):
-    return gym.make(env_name)
+def make_rl_gym_env(env_name):
+    return RocketLanderWrapper(gym.make(env_name))
 
 
 # Configure the optimizer over the a2c agent
@@ -177,12 +175,25 @@ def run_a2c(cfg, max_grad_norm=0.5):
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
             eval_workspace = Workspace()  # Used for evaluation
-            eval_agent(eval_workspace, t=0, stop_variable="env/done", stochastic=False)
-            rewards = eval_workspace["env/cumulated_reward"][-1]
-            mean = rewards.mean()
+            eval_agent(
+                eval_workspace,
+                t=0,
+                stop_variable="env/done",
+                stochastic=False,
+                save_render=True,
+            )
+            cum_rewards = eval_workspace["env/cumulated_reward"][-1]
+            rewards = eval_workspace["env/reward"][-1]
+            score = 0
+            for i in rewards:
+                if i > 0:
+                    score += 1
+            mean = cum_rewards.mean()
             logger.add_log("reward", mean, nb_steps)
             print(f"epoch: {epoch}, reward: {mean}")
-            if cfg.save_best and mean > best_reward:
+            if score > 0:
+                print(f"score : {score}")
+            if cfg.save_best and mean > best_reward or score > 0:
                 best_reward = mean
                 directory = "./a2c_policies/"
                 if not os.path.exists(directory):
@@ -210,10 +221,8 @@ def run_a2c(cfg, max_grad_norm=0.5):
     chrono.stop()
 
 
-# @hydra.main(config_path="./configs/", config_name="a2c_pendulum.yaml", version_base="1.1")
-# @hydra.main(config_path="./configs/", config_name="a2c_cartpolecontinuous.yaml", version_base="1.1")
 @hydra.main(
-    config_path="./configs/", config_name="a2c_cartpole.yaml", version_base="1.1"
+    config_path="./configs/", config_name="a2c_rocket_lander.yaml", version_base="1.1"
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))

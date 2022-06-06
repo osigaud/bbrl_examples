@@ -11,7 +11,6 @@ import hydra
 from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
-from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl.agents import Agents, TemporalAgent
 
 from bbrl.visu.visu_policies import plot_policy
@@ -111,19 +110,20 @@ def run_dqn_no_rb(cfg, reward_logger):
                 train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True
             )
 
-        nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
-
         transition_workspace = train_workspace.get_transitions()
 
         q_values, done, truncated, reward, action = transition_workspace[
             "q_values", "env/done", "env/truncated", "env/reward", "action"
         ]
+        q_agent(transition_workspace, t=0, n_steps=2, stochastic=True)
+        q_values = transition_workspace["q_values"]
 
         with torch.no_grad():
             target_q_agent(transition_workspace, t=0, n_steps=2, stochastic=True)
 
         target_q_values = transition_workspace["q_values"]
-        if epoch == 0:
+
+        if tmp_steps2 == nb_steps:
             with torch.no_grad():
                 tmp = torch.clone(q_values)
             assert torch.equal(
@@ -139,6 +139,8 @@ def run_dqn_no_rb(cfg, reward_logger):
         critic_loss = compute_critic_loss(
             cfg, reward, must_bootstrap, q_values, target_q_values, action
         )
+
+        nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         # Store the loss for tensorboard display
         logger.add_log("critic_loss", critic_loss, nb_steps)

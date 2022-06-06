@@ -63,7 +63,7 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute critic loss
     td_error = td**2
     critic_loss = td_error.mean()
-    return critic_loss, td
+    return critic_loss
 
 
 def run_dqn_no_rb_no_target(cfg, reward_logger):
@@ -112,16 +112,15 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
         q_values, done, truncated, reward, action = transition_workspace[
             "q_values", "env/done", "env/truncated", "env/reward", "action"
         ]
-
+        q_agent(transition_workspace, t=0, n_steps=2, stochastic=True)
+        q_values = transition_workspace["q_values"]
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         # Compute critic loss
-        critic_loss, td = compute_critic_loss(
-            cfg, reward, must_bootstrap, q_values, action
-        )
+        critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, q_values, action)
 
         # Store the loss for tensorboard display
         logger.add_log("critic_loss", critic_loss, nb_steps)
