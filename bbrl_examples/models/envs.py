@@ -9,8 +9,6 @@ class AutoResetEnvAgent(AutoResetGymAgent):
         super().__init__(get_class(cfg.gym_env), get_arguments(cfg.gym_env), n_envs)
         env = instantiate_class(cfg.gym_env)
         env.seed(cfg.algorithm.seed)
-        self.observation_space = env.observation_space
-        self.action_space = env.action_space
         del env
 
 

@@ -19,7 +19,7 @@ import torch.nn as nn
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
 from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.critics import VAgent
-from bbrl_examples.models.envs import AutoResetEnvAgent, NoAutoResetEnvAgent
+from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger
 from bbrl_examples.wrappers.wrappers import RocketLanderWrapper
 from bbrl.utils.chrono import Chrono
@@ -97,8 +97,18 @@ def run_a2c(cfg, max_grad_norm=0.5):
     best_reward = -10e9
 
     # 2) Create the environment agent
-    train_env_agent = AutoResetEnvAgent(cfg, n_envs=cfg.algorithm.n_envs)
-    eval_env_agent = NoAutoResetEnvAgent(cfg, n_envs=cfg.algorithm.nb_evals)
+    train_env_agent = AutoResetGymAgent(
+        get_class(cfg.gym_env),
+        get_arguments(cfg.gym_env),
+        cfg.algorithm.n_envs,
+        cfg.algorithm.seed,
+    )
+    eval_env_agent = NoAutoResetGymAgent(
+        get_class(cfg.gym_env),
+        get_arguments(cfg.gym_env),
+        cfg.algorithm.n_envs,
+        cfg.algorithm.seed,
+    )
 
     # 3) Create the A2C Agent
     a2c_agent, eval_agent, critic_agent = create_a2c_agent(
