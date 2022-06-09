@@ -85,7 +85,7 @@ def run_dqn_no_rb(cfg, reward_logger):
     eval_env_agent = NoAutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
+        cfg.algorithm.n_evals,
         cfg.algorithm.seed,
     )
     # 3) Create the DQN-like Agent

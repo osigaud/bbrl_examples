@@ -87,7 +87,7 @@ def run_dqn_full(cfg, reward_logger):
     eval_env_agent = NoAutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
+        cfg.algorithm.nb_evals,
         cfg.algorithm.seed,
     )
 
@@ -127,9 +127,11 @@ def run_dqn_full(cfg, reward_logger):
                 train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True
             )
 
-        nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
-
         transition_workspace = train_workspace.get_transitions()
+        action = transition_workspace["action"]
+        nb_steps += len(action[0]) * cfg.algorithm.n_envs
+        # print(f"long:{len(action[0])}/{cfg.algorithm.n_steps}")
+
         rb.put(transition_workspace)
 
         rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)

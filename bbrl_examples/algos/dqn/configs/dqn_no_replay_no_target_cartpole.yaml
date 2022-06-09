@@ -15,6 +15,7 @@
       n_envs: 1
       n_steps: 100
       eval_interval: 2000
+      nb_episodes: 100
       nb_evals: 10
       gae: 0.8
       max_epochs: 2500

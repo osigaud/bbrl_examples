@@ -54,10 +54,12 @@ def setup_optimizers(cfg, q_agent):
 
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute temporal difference
-    max_q = q_values[1].max(-1)[0].detach()
-    target = reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
-    act = action[0].unsqueeze(-1)
-    qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
+    max_q = q_values.max(-1)[1].detach()
+    target = (
+        reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()[1:]
+    )
+    act = action.unsqueeze(-1)
+    qvals = torch.gather(q_values, dim=1, index=act).squeeze()
     td = target - qvals
     # Compute critic loss
     td_error = td**2
@@ -71,16 +73,16 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
     best_reward = -10e9
 
     # 2) Create the environment agent
-    train_env_agent = AutoResetGymAgent(
+    train_env_agent = NoAutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
+        1,
         cfg.algorithm.seed,
     )
     eval_env_agent = NoAutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
-        cfg.algorithm.n_evals,
+        cfg.algorithm.nb_evals,
         cfg.algorithm.seed,
     )
 
@@ -91,42 +93,26 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
 
     # 5) Configure the workspace to the right dimension
     # Note that no parameter is needed to create the workspace.
-    # In the training loop, calling the agent() and critic_agent()
+    # In the training loop, calling the train_agent
     # will take the workspace as parameter
-    train_workspace = Workspace()  # Used for training
 
-    # 6) Configure the optimizer over the a2c agent
+    # 6) Configure the optimizer
     optimizer = setup_optimizers(cfg, q_agent)
     nb_steps = 0
     tmp_steps = 0
 
-    # 7) Training loop
-    for epoch in range(cfg.algorithm.max_epochs):
-        # Execute the agent in the workspace
-        if epoch > 0:
-            train_workspace.zero_grad()
-            train_workspace.copy_n_last_steps(1)
-            train_agent(
-                train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True
-            )
-        else:
-            train_agent(
-                train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True
-            )
+    for episode in range(cfg.algorithm.nb_episodes):
+        train_workspace = Workspace()  # Used for training
+        train_agent(train_workspace, t=0, stop_variable="env/done", stochastic=True)
 
-        nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
-
-        transition_workspace = train_workspace.get_transitions()
-
-        q_values, done, truncated, reward, action = transition_workspace[
+        q_values, done, truncated, reward, action = train_workspace[
             "q_values", "env/done", "env/truncated", "env/reward", "action"
         ]
-        q_agent(transition_workspace, t=0, n_steps=2, stochastic=True)
-        q_values = transition_workspace["q_values"]
+        nb_steps += len(q_values)
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
-        must_bootstrap = torch.logical_or(~done[1], truncated[1])
+        must_bootstrap = torch.logical_or(~done, truncated)
 
         # Compute critic loss
         critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, q_values, action)
@@ -150,7 +136,7 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)
-            print(f"epoch: {epoch}, reward: {mean}")
+            print(f"episode: {episode}, reward: {mean}")
             reward_logger.add(nb_steps, mean)
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
