@@ -91,7 +91,6 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
         cfg, train_env_agent, eval_env_agent
     )
 
-    # 5) Configure the workspace to the right dimension
     # Note that no parameter is needed to create the workspace.
     # In the training loop, calling the train_agent
     # will take the workspace as parameter

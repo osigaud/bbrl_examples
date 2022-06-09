@@ -96,10 +96,7 @@ def run_dqn_full(cfg, reward_logger):
         cfg, train_env_agent, eval_env_agent
     )
 
-    # 5) Configure the workspace to the right dimension
     # Note that no parameter is needed to create the workspace.
-    # In the training loop, calling the agent() and critic_agent()
-    # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
     rb = ReplayBuffer(max_size=1e5)
 
@@ -130,7 +127,6 @@ def run_dqn_full(cfg, reward_logger):
         transition_workspace = train_workspace.get_transitions()
         action = transition_workspace["action"]
         nb_steps += len(action[0]) * cfg.algorithm.n_envs
-        # print(f"long:{len(action[0])}/{cfg.algorithm.n_steps}")
 
         rb.put(transition_workspace)
 

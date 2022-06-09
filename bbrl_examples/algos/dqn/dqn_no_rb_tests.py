@@ -85,7 +85,7 @@ def run_dqn_no_rb(cfg, reward_logger):
     eval_env_agent = NoAutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
-        cfg.algorithm.n_evals,
+        cfg.algorithm.nb_evals,
         cfg.algorithm.seed,
     )
     # 3) Create the DQN-like Agent
@@ -93,13 +93,10 @@ def run_dqn_no_rb(cfg, reward_logger):
         cfg, train_env_agent, eval_env_agent
     )
 
-    # 5) Configure the workspace to the right dimension
     # Note that no parameter is needed to create the workspace.
-    # In the training loop, calling the agent() and critic_agent()
-    # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
 
-    # 6) Configure the optimizer over the a2c agent
+    # 6) Configure the optimizer
     optimizer = setup_optimizers(cfg, q_agent)
     nb_steps = 0
     tmp_steps = 0
@@ -148,9 +145,7 @@ def run_dqn_no_rb(cfg, reward_logger):
         critic_loss = compute_critic_loss(
             cfg, reward, must_bootstrap, q_values, target_q_values, action
         )
-
-        nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
-
+        nb_steps += len(action[0]) * cfg.algorithm.n_envs
         # Store the loss for tensorboard display
         logger.add_log("critic_loss", critic_loss, nb_steps)
 

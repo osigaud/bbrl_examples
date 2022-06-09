@@ -90,7 +90,7 @@ def run_dqn(cfg, reward_logger):
     eval_env_agent = NoAutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
-        cfg.algorithm.n_evals,
+        cfg.algorithm.nb_evals,
         cfg.algorithm.seed,
     )
 
@@ -99,14 +99,11 @@ def run_dqn(cfg, reward_logger):
         cfg, train_env_agent, eval_env_agent
     )
 
-    # 5) Configure the workspace to the right dimension
     # Note that no parameter is needed to create the workspace.
-    # In the training loop, calling the agent() and critic_agent()
-    # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
     rb = ReplayBuffer(max_size=1e5)
 
-    # 6) Configure the optimizer over the a2c agent
+    # 6) Configure the optimizer
     optimizer = setup_optimizers(cfg, q_agent)
     nb_steps = 0
     tmp_steps = 0
@@ -125,9 +122,9 @@ def run_dqn(cfg, reward_logger):
                 train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True
             )
 
-        nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
-
         transition_workspace = train_workspace.get_transitions()
+        action = transition_workspace["action"]
+        nb_steps += len(action[0]) * cfg.algorithm.n_envs
         rb.put(transition_workspace)
 
         rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)

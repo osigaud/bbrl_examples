@@ -80,7 +80,7 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
     eval_env_agent = NoAutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
-        cfg.algorithm.n_evals,
+        cfg.algorithm.nb_evals,
         cfg.algorithm.seed,
     )
 
@@ -89,13 +89,10 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
         cfg, train_env_agent, eval_env_agent
     )
 
-    # 5) Configure the workspace to the right dimension
     # Note that no parameter is needed to create the workspace.
-    # In the training loop, calling the agent() and critic_agent()
-    # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
 
-    # 6) Configure the optimizer over the a2c agent
+    # 6) Configure the optimizer
     optimizer = setup_optimizers(cfg, q_agent)
     nb_steps = 0
     tmp_steps = 0
@@ -114,8 +111,6 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
                 train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True
             )
 
-        nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
-
         transition_workspace = train_workspace.get_transitions()
 
         q_values, done, truncated, reward, action = transition_workspace[
@@ -123,6 +118,8 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
         ]
         q_agent(transition_workspace, t=0, n_steps=2, stochastic=True)
         q_values = transition_workspace["q_values"]
+        nb_steps += len(action[0]) * cfg.algorithm.n_envs
+
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
