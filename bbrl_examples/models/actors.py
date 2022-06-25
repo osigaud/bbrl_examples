@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
+from torch.distributions import Bernoulli
 
 from bbrl_examples.models.shared_models import build_mlp, build_backbone
 from bbrl.agents.agent import Agent
@@ -47,49 +48,6 @@ class RandomDiscreteActor(Agent):
         self.set(("action", t), action)
 
 
-class DiscreteActor(Agent):
-    def __init__(self, state_dim, hidden_size, n_actions):
-        super().__init__()
-        self.model = build_mlp(
-            [state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU()
-        )
-
-    def forward(self, t, stochastic, replay=False, **kwargs):
-        """
-        Compute the action given either a time step (looking into the workspace)
-        or an observation (in kwargs)
-        """
-        if "observation" in kwargs:
-            observation = kwargs["observation"]
-        else:
-            observation = self.get(("env/env_obs", t))
-        scores = self.model(observation)
-        probs = torch.softmax(scores, dim=-1)
-
-        if stochastic:
-            action = torch.distributions.Categorical(probs).sample()
-        else:
-            action = scores.argmax(1)
-
-        entropy = torch.distributions.Categorical(probs).entropy()
-        log_probs = probs[torch.arange(probs.size()[0]), action].log()
-
-        if not replay:
-            self.set(("action", t), action)
-        self.set(("action_logprobs", t), log_probs)
-        self.set(("entropy", t), entropy)
-
-    def predict_action(self, obs, stochastic):
-        scores = self.model(obs)
-
-        if stochastic:
-            probs = torch.softmax(scores, dim=-1)
-            action = torch.distributions.Categorical(probs).sample()
-        else:
-            action = scores.argmax(0)
-        return action
-
-
 class ProbAgent(Agent):
     def __init__(self, state_dim, hidden_layers, n_action):
         super().__init__(name="prob_agent")
@@ -119,6 +77,82 @@ class ActionAgent(Agent):
             action = probs.argmax(1)
 
         self.set(("action", t), action)
+
+
+class DiscreteActor(Agent):
+    def __init__(self, state_dim, hidden_size, n_actions):
+        super().__init__()
+        self.model = build_mlp(
+            [state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU()
+        )
+
+    def forward(self, t, stochastic, **kwargs):
+        """
+        Compute the action given either a time step (looking into the workspace)
+        or an observation (in kwargs)
+        """
+        if "observation" in kwargs:
+            observation = kwargs["observation"]
+        else:
+            observation = self.get(("env/env_obs", t))
+        scores = self.model(observation)
+        probs = torch.softmax(scores, dim=-1)
+
+        if stochastic:
+            action = torch.distributions.Categorical(probs).sample()
+        else:
+            action = scores.argmax(1)
+
+        entropy = torch.distributions.Categorical(probs).entropy()
+        log_probs = probs[torch.arange(probs.size()[0]), action].log()
+
+        self.set(("action", t), action)
+        self.set(("action_logprobs", t), log_probs)
+        self.set(("entropy", t), entropy)
+
+    def predict_action(self, obs, stochastic):
+        scores = self.model(obs)
+
+        if stochastic:
+            probs = torch.softmax(scores, dim=-1)
+            action = torch.distributions.Categorical(probs).sample()
+        else:
+            action = scores.argmax(0)
+        return action
+
+
+class BernoulliActor(Agent):
+    def __init__(self, state_dim, hidden_layers):
+        super().__init__()
+        layers = [state_dim] + list(hidden_layers) + [1]
+        self.model = build_mlp(
+            layers, activation=nn.ReLU(), output_activation=nn.Sigmoid()
+        )
+
+    def forward(self, t, stochastic, **kwargs):
+        obs = self.get(("env/env_obs", t))
+        mean = self.model(obs)
+        dist = Bernoulli(mean)
+        self.set(("entropy", t), dist.entropy())
+        if stochastic:
+            action = dist.sample().int().squeeze(-1)
+        else:
+            act = mean.lt(0.5)
+            action = act.squeeze(-1)
+        # print(f"stoch:{stochastic} obs:{obs} mean:{mean} dist:{dist} action:{action}")
+        log_prob = dist.log_prob(action.float()).sum(axis=-1)
+        self.set(("action", t), action)
+        self.set(("action_logprobs", t), log_prob)
+
+    def predict_action(self, obs, stochastic):
+        mean = self.model(obs)
+        dist = Bernoulli(mean)
+        if stochastic:
+            act = dist.sample().int()
+            return act
+        else:
+            act = mean.lt(0.5)
+        return act
 
 
 # All the actors below use a Gaussian policy, that is the output is Normal distribution

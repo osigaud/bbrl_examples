@@ -19,7 +19,7 @@ import torch.nn as nn
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
 from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
 from bbrl_examples.models.actors import ConstantVarianceContinuousActor
-from bbrl_examples.models.actors import DiscreteActor
+from bbrl_examples.models.actors import DiscreteActor, BernoulliActor
 from bbrl_examples.models.critics import VAgent
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger
@@ -40,6 +40,7 @@ def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
         )
         # print_agent = PrintAgent(*{"critic", "env/reward", "env/done", "action", "env/env_obs"})
     else:
+        # action_agent = BernoulliActor(obs_size, cfg.algorithm.architecture.hidden_size)
         action_agent = DiscreteActor(
             obs_size, cfg.algorithm.architecture.hidden_size, act_size
         )
