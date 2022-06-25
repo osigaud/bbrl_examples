@@ -16,7 +16,7 @@ from bbrl.visu.visu_critics import plot_critic
 
 from bbrl_examples.models.actors import EGreedyActionSelector
 from bbrl_examples.models.critics import DiscreteQAgent
-from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
+from bbrl.agents.gymb import NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger, RewardLogger
 from bbrl_examples.models.plotters import Plotter
 from bbrl.utils.chrono import Chrono
@@ -54,20 +54,32 @@ def setup_optimizers(cfg, q_agent):
 
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute temporal difference
-    max_q = q_values.max(-1)[1].detach()
+    # print(q_values)
+    max_q = q_values.max(-1)
+    max_q = max_q[0].detach()
+    # print(max_q)
+    # print("r:", reward)
     target = (
-        reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()[1:]
+        reward[:-1]
+        + cfg.algorithm.discount_factor * max_q[1:] * must_bootstrap[1:].int()
     )
-    act = action.unsqueeze(-1)
-    qvals = torch.gather(q_values, dim=1, index=act).squeeze()
+    # print("t:", target, target.shape)
+    # print(action, action.shape)
+    vals = q_values.squeeze()
+    # print("v", vals, vals.shape)
+    qvals = torch.gather(vals, dim=1, index=action)
+    qvals = qvals[:-1]
+    # print("qvals", qvals, qvals.shape)
     td = target - qvals
+    # print(td, td.shape)
     # Compute critic loss
     td_error = td**2
     critic_loss = td_error.mean()
+    # print(critic_loss)
     return critic_loss
 
 
-def run_dqn_no_rb_no_target(cfg, reward_logger):
+def run_dqn_naked(cfg, reward_logger):
     # 1)  Build the  logger
     logger = Logger(cfg)
     best_reward = -10e9
@@ -99,8 +111,9 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
     optimizer = setup_optimizers(cfg, q_agent)
     nb_steps = 0
     tmp_steps = 0
+    nb_measures = 0
 
-    for episode in range(cfg.algorithm.nb_episodes):
+    while nb_measures < cfg.algorithm.nb_measures:
         train_workspace = Workspace()  # Used for training
         train_agent(train_workspace, t=0, stop_variable="env/done", stochastic=True)
 
@@ -112,7 +125,6 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
         # True if the episode reached a time limit or if the task was not done
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
         must_bootstrap = torch.logical_or(~done, truncated)
-
         # Compute critic loss
         critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, q_values, action)
 
@@ -127,6 +139,7 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
         optimizer.step()
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
+            nb_measures += 1
             tmp_steps = nb_steps
             eval_workspace = Workspace()  # Used for evaluation
             eval_agent(
@@ -135,7 +148,7 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)
-            print(f"episode: {episode}, reward: {mean}")
+            print(f"nb_steps: {nb_steps}, reward: {mean}")
             reward_logger.add(nb_steps, mean)
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
@@ -169,25 +182,23 @@ def main_loop(cfg):
     if not os.path.exists(logdir):
         os.makedirs(logdir)
     reward_logger = RewardLogger(
-        logdir + "dqn_no_rb_no_target.steps", logdir + "dqn_no_rb_no_target.rwd"
+        logdir + "naked_no_reset.steps", logdir + "naked_no_reset.rwd"
     )
     for seed in range(cfg.algorithm.nb_seeds):
         cfg.algorithm.seed = seed
         torch.manual_seed(cfg.algorithm.seed)
-        run_dqn_no_rb_no_target(cfg, reward_logger)
+        run_dqn_naked(cfg, reward_logger)
         if seed < cfg.algorithm.nb_seeds - 1:
             reward_logger.new_episode()
     reward_logger.save()
     chrono.stop()
-    plotter = Plotter(
-        logdir + "dqn_no_rb_no_target.steps", logdir + "dqn_no_rb_no_target.rwd"
-    )
-    plotter.plot_reward("dqn_no_rb_no_target", cfg.gym_env.env_name)
+    plotter = Plotter(logdir + "naked_no_reset.steps", logdir + "naked_no_reset.rwd")
+    plotter.plot_reward("naked_no_reset", cfg.gym_env.env_name)
 
 
 @hydra.main(
     config_path="./configs/",
-    config_name="dqn_no_replay_no_target_cartpole.yaml",
+    config_name="no_reset_dqn_naked_cartpole.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

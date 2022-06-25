@@ -54,11 +54,16 @@ def setup_optimizers(cfg, q_agent):
 
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute temporal difference
+    # print(q_values)
     max_q = q_values[1].max(-1)[0].detach()
+    # print(max_q)
     target = reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
     act = action[0].unsqueeze(-1)
+    # print(act, act.shape)
     qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
+    # print("qvals", qvals, qvals.shape)
     td = target - qvals
+    # print("td", td)
     # Compute critic loss
     td_error = td**2
     critic_loss = td_error.mean()
@@ -147,7 +152,7 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)
-            print(f"epoch: {epoch}, reward: {mean}")
+            print(f"nb_steps: {nb_steps}, reward: {mean}")
             reward_logger.add(nb_steps, mean)
             if cfg.save_best and mean > best_reward:
                 best_reward = mean

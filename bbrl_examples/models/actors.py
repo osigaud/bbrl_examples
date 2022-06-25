@@ -121,7 +121,7 @@ class ActionAgent(Agent):
         self.set(("action", t), action)
 
 
-# All the actors below use a squashed Gaussian policy, that is the output is the tanh of a Normal distribution
+# All the actors below use a Gaussian policy, that is the output is Normal distribution
 
 
 class TunableVarianceContinuousActor(Agent):
@@ -136,16 +136,15 @@ class TunableVarianceContinuousActor(Agent):
     def forward(self, t, stochastic, **kwargs):
         obs = self.get(("env/env_obs", t))
         mean = self.model(obs)
-        # print(mean, self.std_param)
         dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
         self.set(("entropy", t), dist.entropy())
         if stochastic:
             action = dist.sample()
         else:
             action = mean
-        logp_p = dist.log_prob(action).sum(axis=-1)
+        log_prob = dist.log_prob(action).sum(axis=-1)
         self.set(("action", t), action)
-        self.set(("action_logprobs", t), logp_p)
+        self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic):
         mean = self.model(obs)
@@ -162,33 +161,37 @@ class StateDependentVarianceContinuousActor(Agent):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
         self.layers = build_backbone(backbone_dim, activation=nn.ReLU())
-        self.last_layer = nn.Linear(hidden_layers[-1], action_dim)
-        self.mean_layer = nn.Tanh()
+        self.backbone = nn.Sequential(*self.layers)
+
+        self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
+        self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
         # std must be positive
         self.std_layer = nn.Softplus()
-        self.backbone = nn.Sequential(*self.layers)
 
     def forward(self, t, stochastic, **kwargs):
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
-        last = self.last_layer(backbone_output)
-        mean = self.mean_layer(last)
+        mean = self.last_mean_layer(backbone_output)
+        std_out = self.last_std_layer(backbone_output)
+        std = self.std_layer(std_out)
         assert not torch.any(torch.isnan(mean)), "Nan Here"
-        dist = Normal(mean, self.std_layer(last))
+        dist = Normal(mean, std)
         self.set(("entropy", t), dist.entropy())
         if stochastic:
             action = dist.sample()
         else:
             action = mean
-        logp_p = dist.log_prob(action).sum(axis=-1)
+        log_prob = dist.log_prob(action).sum(axis=-1)
         self.set(("action", t), action)
-        self.set(("action_logprobs", t), logp_p)
+        self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic):
         backbone_output = self.backbone(obs)
-        last = self.last_layer(backbone_output)
-        mean = self.mean_layer(last)
-        dist = Normal(mean, self.std_layer(last))
+        mean = self.last_mean_layer(backbone_output)
+        std_out = self.last_std_layer(backbone_output)
+        std = self.std_layer(std_out)
+        assert not torch.any(torch.isnan(mean)), "Nan Here"
+        dist = Normal(mean, std)
         if stochastic:
             action = dist.sample()
         else:
@@ -212,9 +215,9 @@ class ConstantVarianceContinuousActor(Agent):
             action = dist.sample()
         else:
             action = mean
-        logp_p = dist.log_prob(action).sum(axis=-1)
+        log_prob = dist.log_prob(action).sum(axis=-1)
         self.set(("action", t), action)
-        self.set(("action_logprobs", t), logp_p)
+        self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic):
         mean = self.model(obs)

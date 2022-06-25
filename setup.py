@@ -13,6 +13,6 @@ setup(
     author="Olivier Sigaud",
     author_email="Olivier.Sigaud@isir.upmc.fr",
     license="MIT",
-    description="Examples of RL code with bbrl",
+    description="Pedagogical RL code with BBRL",
     long_description=open("README.md").read(),
 )

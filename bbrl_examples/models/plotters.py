@@ -20,6 +20,18 @@ def format_num(num, pos):
     return f"{num:.1f}{labels[magnitude]}"
 
 
+def equalize_lengths(steps, rewards):
+    min_len = len(steps)
+    for i in rewards:
+        reward_len = len(i)
+        if reward_len < min_len:
+            min_len = reward_len
+    for i in range(len(rewards)):
+        rewards[i] = rewards[i][0:min_len]
+    steps = steps[0:min_len]
+    return steps, rewards
+
+
 class Plotter:
     def __init__(self, steps_filename, rewards_filename):
         self.steps_filename = steps_filename
@@ -43,17 +55,19 @@ class Plotter:
 
         loader = RewardLoader(self.steps_filename, self.rewards_filename)
         steps, rewards = loader.load()
+        print(steps, rewards)
+        # steps, rewards = equalize_lengths(steps, rewards)
 
         if mode == "best":
             best = rewards.sum(axis=1).argmax()
-            rewards = rewards[best]
+            mean = rewards[best]
         elif mode == "max":
-            rewards = np.max(rewards, axis=0)
+            mean = np.max(rewards, axis=0)
         else:
             std = rewards.std(axis=0)
-            rewards = rewards.mean(axis=0)
-            ax.fill_between(steps, rewards + std, rewards - std, alpha=0.1, color=color)
-        ax.plot(steps, rewards, lw=2, label=f"{algo_name}", color=color)
+            mean = rewards.mean(axis=0)
+            ax.fill_between(steps, mean + std, mean - std, alpha=0.1, color=color)
+        ax.plot(steps, mean, lw=2, label=f"{algo_name}", color=color)
         ax.xaxis.set_major_formatter(formatter)
         plt.legend()
 
@@ -138,19 +152,20 @@ class CommonPlotter:
             algo_name = reward_file.split(".")[0]
             loader = RewardLoader(self.steps_filename, self.logdir + reward_file)
             steps, rewards = loader.load()
+            print(steps, rewards)
 
             if mode == "best":
                 best = rewards.sum(axis=1).argmax()
-                rewards = rewards[best]
+                mean = rewards[best]
             elif mode == "max":
-                rewards = np.max(rewards, axis=0)
+                mean = np.max(rewards, axis=0)
             else:
                 std = rewards.std(axis=0)
-                rewards = rewards.mean(axis=0)
+                mean = rewards.mean(axis=0)
                 ax.fill_between(
-                    steps, rewards + std, rewards - std, alpha=0.1, color=colors[cpt]
+                    steps, mean + std, mean - std, alpha=0.1, color=colors[cpt]
                 )
-            ax.plot(steps, rewards, lw=2, label=f"{algo_name}", color=colors[cpt])
+            ax.plot(steps, mean, lw=2, label=f"{algo_name}", color=colors[cpt])
             cpt += 1 % len(colors)
 
         ax.xaxis.set_major_formatter(formatter)

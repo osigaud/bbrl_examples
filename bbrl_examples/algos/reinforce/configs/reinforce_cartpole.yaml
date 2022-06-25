@@ -1,26 +1,26 @@
-    save_best: False
-    plot_agents: False
+    save_best: True
+    plot_agents: True
 
     logger:
       classname: bbrl.utils.logger.TFLogger
-      log_dir: ./dqn_logs/
+      log_dir: ./a2c_logs/
       verbose: False
       every_n_seconds: 10
 
     algorithm:
       seed: 4
-      nb_seeds: 10
-      epsilon_init: 0.02
-      max_grad_norm: 0.5
-      n_envs: 1
-      n_steps: 100
-      eval_interval: 500
+      n_envs: 8
+      n_steps: 20
+      eval_interval: 2000
       nb_evals: 10
       gae: 0.8
-      max_epochs: 2000
-      discount_factor: 0.99
+      max_epochs: 3000
+      discount_factor: 0.95
+      entropy_coef: 2.55e-5
+      critic_coef: 0.6
+      a2c_coef: 1
       architecture:
-        hidden_size: [256, 256]
+        hidden_size: [25, 25]
 
     gym_env:
       classname: __main__.make_gym_env
@@ -28,4 +28,4 @@
 
     optimizer:
       classname: torch.optim.Adam
-      lr: 2.3e-3
+      lr: 0.001

@@ -16,7 +16,7 @@
       n_steps: 100
       batch_size: 64
       eval_interval: 2000
-      target_critic_update: 1
+      target_critic_update: 5000
       nb_evals: 10
       gae: 0.8
       max_epochs: 2500
