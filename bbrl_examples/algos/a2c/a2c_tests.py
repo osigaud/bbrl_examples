@@ -144,7 +144,6 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
         # Compute the critic value over the whole workspace
         critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
-        nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         transition_workspace = train_workspace.get_transitions()
 
@@ -156,7 +155,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
             "action",
             "action_logprobs",
         ]
-
+        nb_steps += len(action[0]) * cfg.algorithm.n_envs
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing

@@ -75,7 +75,7 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute critic loss
     td_error = td**2
     critic_loss = td_error.mean()
-    # print(critic_loss)
+    # print("cl", critic_loss)
     return critic_loss
 
 

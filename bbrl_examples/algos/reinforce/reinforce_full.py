@@ -1,68 +1,79 @@
-#
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-#
-
-import copy
-import time
-
+import os
 import gym
+import my_gym
 import hydra
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from gym.wrappers import TimeLimit
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
-import bbrl
-import bbrl.utils.functional as RLF
 from bbrl import get_arguments, get_class, instantiate_class
-from bbrl.agents.agent import Agent
 from bbrl.workspace import Workspace
-from bbrl.agents import Agents, TemporalAgent
+from bbrl.agents import Agents, TemporalAgent, PrintAgent
+from bbrl.agents.agent import Agent
 
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
 from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
 from bbrl_examples.models.actors import ConstantVarianceContinuousActor
 from bbrl_examples.models.actors import DiscreteActor, BernoulliActor
 from bbrl_examples.models.critics import VAgent
-from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
+from bbrl.agents.gymb import NoAutoResetGymAgent
+from bbrl.utils.functionalb import gae
 from bbrl_examples.models.loggers import Logger
 from bbrl.utils.chrono import Chrono
+
 
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
 
-def _index(tensor_3d, tensor_2d):
-    """This function is used to index a 3d tensors using a 2d tensor"""
-    x, y, z = tensor_3d.size()
-    t = tensor_3d.reshape(x * y, z)
-    tt = tensor_2d.reshape(x * y)
-    v = t[torch.arange(x * y), tt]
-    v = v.reshape(x, y)
-    return v
+def apply_sum(reward):
+    # print(reward)
+    reward_sum = reward.sum(axis=0)
+    # print("sum", reward_sum)
+    for i in range(len(reward)):
+        reward[i] = reward_sum
+    # print("final", reward)
+    return reward
 
 
-# Create the reinforce Agent
+def apply_discounted_sum(cfg, reward):
+    # print(reward)
+    tmp = 0
+    for i in reversed(range(len(reward))):
+        reward[i] = reward[i] + cfg.algorithm.discount_factor * tmp
+        tmp = reward[i]
+    # print("final", reward)
+    return reward
+
+
+def apply_discounted_sum_minus_baseline(cfg, reward, baseline):
+    # print(reward)
+    tmp = 0
+    for i in reversed(range(len(reward))):
+        reward[i] = reward[i] + cfg.algorithm.discount_factor * tmp - baseline[i]
+        tmp = reward[i]
+    # print("final", reward)
+    return reward
+
+
+# Create the REINFORCE Agent
 def create_reinforce_agent(cfg, env_agent):
     obs_size, act_size = env_agent.get_obs_and_actions_sizes()
     if env_agent.is_continuous_action():
         action_agent = TunableVarianceContinuousActor(
-            obs_size, cfg.algorithm.architecture.hidden_size, act_size
+            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
         )
         # print_agent = PrintAgent(*{"critic", "env/reward", "env/done", "action", "env/env_obs"})
     else:
         # action_agent = BernoulliActor(obs_size, cfg.algorithm.architecture.hidden_size)
         action_agent = DiscreteActor(
-            obs_size, cfg.algorithm.architecture.hidden_size, act_size
+            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
         )
-    tr_agent = Agents(env_agent, action_agent)
+    # print_agent = PrintAgent()
+    tr_agent = Agents(env_agent, action_agent)  # , print_agent)
 
     critic_agent = TemporalAgent(
-        VAgent(obs_size, cfg.algorithm.architecture.hidden_size)
+        VAgent(obs_size, cfg.algorithm.architecture.critic_hidden_size)
     )
 
     # Get an agent that is executed on a complete workspace
@@ -83,8 +94,41 @@ def setup_optimizers(cfg, action_agent, critic_agent):
     return optimizer
 
 
+def compute_critic_loss(cfg, reward, must_bootstrap, v_value):
+    # Compute temporal difference
+    # print(f"reward:{reward}, V:{v_value}, MB:{must_bootstrap}")
+    target = (
+        reward[:-1]
+        + cfg.algorithm.discount_factor
+        * v_value[1:].detach()
+        * must_bootstrap[1:].int()
+    )
+    td = target - v_value[:-1]
+    """
+    td = gae(
+        v_value,
+        reward,
+        must_bootstrap[:-1],
+        cfg.algorithm.discount_factor,
+        cfg.algorithm.gae,
+    )
+    """
+
+    # Compute critic loss
+    td_error = td**2
+    critic_loss = td_error.mean()
+    # print(f"target:{target}, td:{td}, cl:{critic_loss}")
+    return critic_loss
+
+
+def compute_actor_loss(action_logprob, reward, must_bootstrap):
+    a2c_loss = action_logprob * reward.detach() * must_bootstrap.int()
+    return a2c_loss.mean()
+
+
 def run_reinforce(cfg):
-    logger = instantiate_class(cfg.logger)
+    logger = Logger(cfg)
+    best_reward = -10e10
 
     # 2) Create the environment agent
     env_agent = NoAutoResetGymAgent(
@@ -94,119 +138,106 @@ def run_reinforce(cfg):
         cfg.algorithm.seed,
     )
 
-    reinforce_agent, critic_agent = create_reinforce_agent(env_agent)
-
-    agent = Agents(env_agent, reinforce_agent)
-
-    agent = TemporalAgent(agent)
-
-    # 6) Configure the workspace to the right dimension.
-    # The time size is greater than the maximum episode size to be able to store all episode states
-    workspace = Workspace()
+    reinforce_agent, critic_agent = create_reinforce_agent(cfg, env_agent)
 
     # 7) Configure the optimizer over the a2c agent
     optimizer = setup_optimizers(cfg, reinforce_agent, critic_agent)
 
     # 8) Training loop
-    epoch = 0
-    for epoch in range(cfg.algorithm.max_epochs):
+    nb_steps = 0
+
+    for episode in range(cfg.algorithm.nb_episodes):
 
         # Execute the agent on the workspace to sample complete episodes
         # Since not all the variables of workspace will be overwritten, it is better to clear the workspace
-        workspace.clear()
-        agent(workspace, stochastic=True, t=0, stop_variable="env/done")
+        # Configure the workspace to the right dimension.
+        train_workspace = Workspace()
+
+        reinforce_agent(train_workspace, stochastic=True, t=0, stop_variable="env/done")
 
         # Get relevant tensors (size are timestep x n_envs x ....)
-        baseline, done, action_probs, reward, action = workspace[
-            "v_value", "env/done", "action_probs", "env/reward", "action"
+        obs, done, truncated, action_logprobs, reward, action = train_workspace[
+            "env/env_obs",
+            "env/done",
+            "env/truncated",
+            "action_logprobs",
+            "env/reward",
+            "action",
         ]
-        r_loss = compute_reinforce_loss(
-            reward, action_probs, baseline, action, done, cfg.algorithm.discount_factor
-        )
+        critic_agent(train_workspace, stop_variable="env/done")
+        v_value = train_workspace["v_value"]
+        # print(f"obs:{obs}")
 
+        for i in range(cfg.algorithm.n_envs):
+            nb_steps += len(action[:, i])
+
+        # Determines whether values of the critic should be propagated
+        # True if the episode reached a time limit or if the task was not done
+        # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
+        must_bootstrap = torch.logical_or(~done, truncated)
+
+        critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, v_value)
+
+        # reward = apply_sum(reward)
+        # reward = apply_discounted_sum(cfg, reward)
+        reward = apply_discounted_sum_minus_baseline(cfg, reward, v_value)
+
+        actor_loss = compute_actor_loss(action_logprobs, reward, must_bootstrap)
+
+        entropy_loss = torch.mean(train_workspace["entropy"])
         # Log losses
-        [logger.add_scalar(k, v.item(), epoch) for k, v in r_loss.items()]
+        logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
 
         loss = (
-            -cfg.algorithm.entropy_coef * r_loss["entropy_loss"]
-            + cfg.algorithm.baseline_coef * r_loss["baseline_loss"]
-            - cfg.algorithm.reinforce_coef * r_loss["reinforce_loss"]
+            -cfg.algorithm.entropy_coef * entropy_loss
+            + cfg.algorithm.critic_coef * critic_loss
+            - cfg.algorithm.actor_coef * actor_loss
         )
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         # Compute the cumulated reward on final_state
-        creward = workspace["env/cumulated_reward"]
-        tl = done.float().argmax(0)
-        creward = creward[tl, torch.arange(creward.size()[1])]
-        logger.add_scalar("reward", creward.mean().item(), epoch)
+        cumulated_reward = train_workspace["env/cumulated_reward"][-1]
+        mean = cumulated_reward.mean()
+        logger.add_log("reward", mean, nb_steps)
+        print(f"episode: {episode}, reward: {mean}")
+        if cfg.save_best and mean > best_reward:
+            best_reward = mean
+            directory = "./reinforce_critic/"
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            filename = directory + "reinforce_" + str(mean.item()) + ".agt"
+            reinforce_agent.save_model(filename)
+            if cfg.plot_agents:
+                policy = reinforce_agent.agent.agents[1]
+                critic = critic_agent.agent
+                plot_policy(
+                    policy,
+                    env_agent,
+                    "./reinforce_plots/",
+                    cfg.gym_env.env_name,
+                    best_reward,
+                    stochastic=False,
+                )
+                plot_critic(
+                    critic,
+                    env_agent,
+                    "./reinforce_plots/",
+                    cfg.gym_env.env_name,
+                    best_reward,
+                )
 
 
-def compute_reinforce_loss(
-    reward, action_probabilities, baseline, action, done, discount_factor
-):
-    """This function computes the reinforce loss, considering that episodes may have different lengths."""
-    batch_size = reward.size()[1]
-
-    # Find the first done occurence for each episode
-    v_done, trajectories_length = done.float().max(0)
-    trajectories_length += 1
-    assert v_done.eq(1.0).all()
-    max_trajectories_length = trajectories_length.max().item()
-
-    # Shorten trajectories for accelerate computation
-    reward = reward[:max_trajectories_length]
-    action_probabilities = action_probabilities[:max_trajectories_length]
-    baseline = baseline[:max_trajectories_length]
-    action = action[:max_trajectories_length]
-
-    # Create a binary mask to mask useless values (of size max_trajectories_length x batch_size)
-    arange = (
-        torch.arange(max_trajectories_length, device=done.device)
-        .unsqueeze(-1)
-        .repeat(1, batch_size)
-    )
-    mask = arange.lt(
-        trajectories_length.unsqueeze(0).repeat(max_trajectories_length, 1)
-    )
-    reward = reward * mask
-
-    # Compute discounted cumulated reward
-    cumulated_reward = [torch.zeros_like(reward[-1])]
-    for t in range(max_trajectories_length - 1, 0, -1):
-        cumulated_reward.append(discount_factor + cumulated_reward[-1] + reward[t])
-    cumulated_reward.reverse()
-    cumulated_reward = torch.cat([c.unsqueeze(0) for c in cumulated_reward])
-
-    # baseline loss
-    g = baseline - cumulated_reward
-    baseline_loss = (g) ** 2
-    baseline_loss = (baseline_loss * mask).mean()
-
-    # policy loss
-    log_probabilities = _index(action_probabilities, action).log()
-    policy_loss = log_probabilities * -g.detach()
-    policy_loss = policy_loss * mask
-    policy_loss = policy_loss.mean()
-
-    # entropy loss
-    entropy = torch.distributions.Categorical(action_probabilities).entropy() * mask
-    entropy_loss = entropy.mean()
-
-    return {
-        "baseline_loss": baseline_loss,
-        "reinforce_loss": policy_loss,
-        "entropy_loss": entropy_loss,
-    }
-
-
-@hydra.main(config_path=".", config_name="main.yaml")
-def main(cfg):
-    import torch.multiprocessing as mp
-
-    mp.set_start_method("spawn")
+@hydra.main(
+    config_path="./configs/",
+    config_name="reinforce_cartpole.yaml",  # debugv.yaml",
+    version_base="1.1",
+)
+def main(cfg: DictConfig):
+    chrono = Chrono()
     run_reinforce(cfg)
+    chrono.stop()
 
 
 if __name__ == "__main__":

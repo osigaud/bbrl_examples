@@ -3,24 +3,23 @@
 
     logger:
       classname: bbrl.utils.logger.TFLogger
-      log_dir: ./a2c_logs/
+      log_dir: ./reinforce_logs/
       verbose: False
       every_n_seconds: 10
 
     algorithm:
       seed: 4
       n_envs: 8
-      n_steps: 20
-      eval_interval: 2000
+      nb_episodes: 1000
       nb_evals: 10
-      gae: 0.8
-      max_epochs: 3000
       discount_factor: 0.95
-      entropy_coef: 2.55e-5
-      critic_coef: 0.6
-      a2c_coef: 1
+      entropy_coef: 1
+      critic_coef: 1
+      actor_coef: 1
+      gae: 0.8
       architecture:
-        hidden_size: [25, 25]
+        actor_hidden_size: [25, 25]
+        critic_hidden_size: [24, 36]
 
     gym_env:
       classname: __main__.make_gym_env
