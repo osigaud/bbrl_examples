@@ -261,3 +261,18 @@ class ConstantVarianceContinuousActor(Agent):
         else:
             action = mean
         return action
+
+
+class ContinuousDeterministicActor(Agent):
+    def __init__(self, state_dim, hidden_layers, action_dim):
+        super().__init__()
+        layers = [state_dim] + list(hidden_layers) + [action_dim]
+        self.model = build_mlp(layers, activation=nn.ReLU())
+
+    def forward(self, t, **kwargs):
+        obs = self.get(("env/env_obs", t))
+        action = self.model(obs)
+        self.set(("action", t), action)
+
+    def predict_action(self, obs):
+        return self.model(obs)

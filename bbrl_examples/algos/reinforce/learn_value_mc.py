@@ -4,6 +4,7 @@ import my_gym
 import hydra
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from omegaconf import DictConfig
 
 from bbrl import get_arguments, get_class, instantiate_class
@@ -87,38 +88,17 @@ def make_gym_env(env_name):
 
 
 # Configure the optimizer over the a2c agent
-def setup_optimizer(cfg, actor, critic):
+def setup_optimizer(cfg, action_agent, critic_agent):
     optimizer_args = get_arguments(cfg.optimizer)
-    parameters = nn.Sequential(actor, critic).parameters()
+    parameters = nn.Sequential(action_agent, critic_agent).parameters()
     optimizer = get_class(cfg.optimizer)(parameters, **optimizer_args)
     return optimizer
 
 
-def compute_critic_loss(cfg, reward, must_bootstrap, v_value):
+def compute_critic_loss_mc(reward, critic):
     # Compute temporal difference
-    # print(f"reward:{reward}, V:{v_value}, MB:{must_bootstrap}")
-    target = (
-        reward[:-1]
-        + cfg.algorithm.discount_factor
-        * v_value[1:].detach()
-        * must_bootstrap[1:].int()
-    )
-    td = target - v_value[:-1]
-    """
-    td = gae(
-        v_value,
-        reward,
-        must_bootstrap[:-1],
-        cfg.algorithm.discount_factor,
-        cfg.algorithm.gae,
-    )
-    """
-
-    # Compute critic loss
-    td_error = td**2
-    critic_loss = td_error.mean()
-    # print(f"target:{target}, td:{td}, cl:{critic_loss}")
-    return critic_loss
+    loss = F.mse_loss(reward, critic)
+    return loss
 
 
 def compute_actor_loss(action_logprob, reward, must_bootstrap):
@@ -178,12 +158,9 @@ def run_reinforce(cfg):
         # See https://colab.research.google.com/drive/1erLbRKvdkdDy0Zn1X_JhC01s1QAt4BBj?usp=sharing
         must_bootstrap = torch.logical_or(~done, truncated)
 
-        critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, v_value)
-
-        reward = apply_sum(reward)
-        # reward = apply_discounted_sum(cfg, reward)
+        reward = apply_discounted_sum(cfg, reward)
         # reward = apply_discounted_sum_minus_baseline(cfg, reward, v_value)
-        # print("logp", action_logprobs)
+        critic_loss = compute_critic_loss_mc(reward, v_value)
         actor_loss = compute_actor_loss(action_logprobs, reward, must_bootstrap)
 
         entropy_loss = torch.mean(train_workspace["entropy"])
@@ -203,13 +180,6 @@ def run_reinforce(cfg):
         cumulated_reward = train_workspace["env/cumulated_reward"][-1]
         mean = cumulated_reward.mean()
         logger.add_log("reward", mean, nb_steps)
-
-        for r in cumulated_reward:
-            if r > 499:
-                print("r", cumulated_reward)
-                print("action_logprobs", action_logprobs)
-                print("actor_loss", actor_loss)
-                print("loss", loss)
         print(f"episode: {episode}, reward: {mean}")
 
         if cfg.save_best and mean > best_reward:
