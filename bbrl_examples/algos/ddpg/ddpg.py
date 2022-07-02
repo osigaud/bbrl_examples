@@ -144,12 +144,12 @@ def run_ddpg_naked(cfg, reward_logger):
         done, truncated, reward, action = rb_workspace[
             "env/done", "env/truncated", "env/reward", "action"
         ]
-        # replace the action at t+1 in the RB with \pi(s_{t+1})
-        ag_actor(rb_workspace, t=1, n_steps=1)
-        # action = rb_workspace["action"]
-        # print("post", action[0])
-        # compute q_values: at t, we have Q(s,a) in the RB, at t+1 we have Q(s_{t+1}, \pi(s_{t+1})
+
+        with torch.no_grad():
+            # replace the action at t+1 in the RB with \pi(s_{t+1})
+            ag_actor(rb_workspace, t=1, n_steps=1)
         q_agent(rb_workspace, t=0, n_steps=1)
+        # compute q_values: at t, we have Q(s,a) in the RB, at t+1 we have Q(s_{t+1}, \pi(s_{t+1})
         target_q_agent(rb_workspace, t=1, n_steps=1)
         q_values = rb_workspace["q_value"]
         # exit(-1)
@@ -161,12 +161,15 @@ def run_ddpg_naked(cfg, reward_logger):
 
         # Compute critic loss
         critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, q_values)
+        actor_loss = compute_actor_loss(reward, must_bootstrap)
 
+        loss = critic_loss + actor_loss
         # Store the loss for tensorboard display
         logger.add_log("critic_loss", critic_loss, nb_steps)
+        logger.add_log("actor_loss", actor_loss, nb_steps)
 
         optimizer.zero_grad()
-        critic_loss.backward()
+        loss.backward()
         torch.nn.utils.clip_grad_norm_(
             q_agent.parameters(), cfg.algorithm.max_grad_norm
         )
@@ -232,7 +235,7 @@ def main_loop(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ddpg_pendulum.yaml",
+    config_name="ddpg_cartpole.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):
