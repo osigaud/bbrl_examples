@@ -76,10 +76,8 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values):
     return critic_loss
 
 
-def compute_actor_loss(reward, must_bootstrap):
-    actor_loss = reward.detach() * must_bootstrap.int()
-    # print("actor_loss", actor_loss)
-    return actor_loss.mean()
+def compute_actor_loss(q_values):
+    return -q_values.mean()
 
 
 def run_ddpg_naked(cfg, reward_logger):
@@ -101,7 +99,7 @@ def run_ddpg_naked(cfg, reward_logger):
         cfg.algorithm.seed,
     )
 
-    # 3) Create the DQN-like Agent
+    # 3) Create the DDPG Agent
     (
         train_agent,
         eval_agent,
@@ -110,8 +108,8 @@ def run_ddpg_naked(cfg, reward_logger):
         target_actor,
         target_critic,
     ) = create_ddpg_agent(cfg, train_env_agent, eval_env_agent)
-    ag_actor = TemporalAgent(actor)
-    # ag_target_actor = TemporalAgent(target_actor)
+    # ag_actor = TemporalAgent(actor)
+    ag_target_actor = TemporalAgent(target_actor)
     q_agent = TemporalAgent(critic)
     target_q_agent = TemporalAgent(target_critic)
 
@@ -120,7 +118,7 @@ def run_ddpg_naked(cfg, reward_logger):
     rb = ReplayBuffer(max_size=1e5)
 
     # 6) Configure the optimizer
-    optimizer = setup_optimizers(cfg, train_agent, q_agent)
+    optimizer = setup_optimizers(cfg, actor, critic)
     nb_steps = 0
     tmp_steps = 0
 
@@ -145,9 +143,9 @@ def run_ddpg_naked(cfg, reward_logger):
             "env/done", "env/truncated", "env/reward", "action"
         ]
 
-        with torch.no_grad():
-            # replace the action at t+1 in the RB with \pi(s_{t+1})
-            ag_actor(rb_workspace, t=1, n_steps=1)
+        # with torch.no_grad():
+        # replace the action at t+1 in the RB with \pi(s_{t+1})
+        ag_target_actor(rb_workspace, t=1, n_steps=1)
         q_agent(rb_workspace, t=0, n_steps=1)
         # compute q_values: at t, we have Q(s,a) in the RB, at t+1 we have Q(s_{t+1}, \pi(s_{t+1})
         target_q_agent(rb_workspace, t=1, n_steps=1)
@@ -161,7 +159,7 @@ def run_ddpg_naked(cfg, reward_logger):
 
         # Compute critic loss
         critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, q_values)
-        actor_loss = compute_actor_loss(reward, must_bootstrap)
+        actor_loss = compute_actor_loss(q_values)
 
         loss = critic_loss + actor_loss
         # Store the loss for tensorboard display
