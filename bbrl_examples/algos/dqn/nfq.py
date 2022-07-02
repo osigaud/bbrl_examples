@@ -124,7 +124,7 @@ def run_dqn(cfg, reward_logger):
 
         transition_workspace = train_workspace.get_transitions()
         action = transition_workspace["action"]
-        nb_steps += len(action[0]) * cfg.algorithm.n_envs
+        nb_steps += action[0].shape[0]
         rb.put(transition_workspace)
 
         rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)

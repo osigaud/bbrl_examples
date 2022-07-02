@@ -14,7 +14,7 @@ class ContinuousQAgent(Agent):
             [state_dim + action_dim] + list(hidden_layers) + [1], activation=nn.ReLU()
         )
 
-    def forward(self, t, detach_actions=False, **kwargs):
+    def forward(self, t, detach_actions=False):
         obs = self.get(("env/env_obs", t))
         action = self.get(("action", t))
         if detach_actions:
@@ -24,7 +24,7 @@ class ContinuousQAgent(Agent):
         self.set(("q_value", t), q_value)
 
     def predict_value(self, obs, action):
-        osb_act = torch.cat((obs, action), dim=1)
+        osb_act = torch.cat((obs, action), dim=0)
         q_value = self.model(osb_act)
         return q_value
 

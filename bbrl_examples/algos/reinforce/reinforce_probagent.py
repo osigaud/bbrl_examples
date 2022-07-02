@@ -21,6 +21,10 @@ from bbrl.utils.functionalb import gae
 from bbrl.utils.chrono import Chrono
 
 
+# This version is useful only to illustrate how one can compute the log probabilities
+# of actions a posteriori, rather than online. The online version is clearly more elegant
+
+
 def apply_sum(reward):
     # print(reward)
     reward_sum = reward.sum(axis=0)
@@ -164,15 +168,6 @@ def run_reinforce(cfg):
         # Compute the cumulated reward on final_state
         cumulated_reward = train_workspace["env/cumulated_reward"][-1]
         mean = cumulated_reward.mean()
-        # first minor differences at episode 708
-        # major shift at episode 778
-        if episode > 600:
-            for r in cumulated_reward:
-                if r > 499:
-                    print("r", cumulated_reward)
-                    print("action_logprobs", action_logp)
-                    print("actor_loss", actor_loss)
-                    print("loss", loss)
         print(f"episode: {episode}, reward: {mean}")
         logger.add_log("reward", mean, nb_steps)
 

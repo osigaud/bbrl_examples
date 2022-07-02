@@ -6,10 +6,9 @@ import copy
 import torch
 import gym
 import my_gym
-
 import hydra
-from omegaconf import DictConfig
 
+from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
 from bbrl.utils.replay_buffer import ReplayBuffer
@@ -17,6 +16,7 @@ from bbrl.agents import Agents, TemporalAgent
 
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
+
 
 from bbrl_examples.models.actors import EGreedyActionSelector
 from bbrl_examples.models.critics import DiscreteQAgent
@@ -71,7 +71,7 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, 
     return critic_loss
 
 
-def run_dqn_full(cfg, reward_logger):
+def run_dqn(cfg, reward_logger):
     # 1)  Build the  logger
     logger = Logger(cfg)
     best_reward = -10e9
@@ -95,11 +95,14 @@ def run_dqn_full(cfg, reward_logger):
         cfg, train_env_agent, eval_env_agent
     )
 
+    # 5) Configure the workspace to the right dimension
     # Note that no parameter is needed to create the workspace.
+    # In the training loop, calling the agent() and critic_agent()
+    # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
     rb = ReplayBuffer(max_size=1e5)
 
-    # 6) Configure the optimizer over the agent
+    # 6) Configure the optimizer over the a2c agent
     optimizer = setup_optimizers(cfg, q_agent)
     nb_steps = 0
     tmp_steps = 0
@@ -108,10 +111,6 @@ def run_dqn_full(cfg, reward_logger):
     # 7) Training loop
     for epoch in range(cfg.algorithm.max_epochs):
         # Execute the agent in the workspace
-        delta = (
-            cfg.algorithm.epsilon_init - cfg.algorithm.epsilon_end
-        ) / cfg.algorithm.max_epochs
-        train_agent.agent.agents[2].epsilon = cfg.algorithm.epsilon_init - delta * epoch
         if epoch > 0:
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
@@ -125,8 +124,7 @@ def run_dqn_full(cfg, reward_logger):
 
         transition_workspace = train_workspace.get_transitions()
         action = transition_workspace["action"]
-        nb_steps += len(action[0]) * cfg.algorithm.n_envs
-
+        nb_steps += action[0].shape[0]
         rb.put(transition_workspace)
 
         rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
@@ -149,22 +147,20 @@ def run_dqn_full(cfg, reward_logger):
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
-        if rb.size() > cfg.algorithm.start_step:
-            # Compute critic loss
-            critic_loss = compute_critic_loss(
-                cfg, reward, must_bootstrap, q_values, target_q_values, action
-            )
+        # Compute critic loss
+        critic_loss = compute_critic_loss(
+            cfg, reward, must_bootstrap, q_values, target_q_values, action
+        )
 
-            # Store the loss for tensorboard display
-            logger.add_log("critic_loss", critic_loss, nb_steps)
+        # Store the loss for tensorboard display
+        logger.add_log("critic_loss", critic_loss, nb_steps)
 
-            optimizer.zero_grad()
-            critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                q_agent.parameters(), cfg.algorithm.max_grad_norm
-            )
-            optimizer.step()
-
+        optimizer.zero_grad()
+        critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            q_agent.parameters(), cfg.algorithm.max_grad_norm
+        )
+        optimizer.step()
         if nb_steps - tmp_steps2 > cfg.algorithm.target_critic_update:
             tmp_steps2 = nb_steps
             target_q_agent.agent = copy.deepcopy(q_agent.agent)
@@ -211,21 +207,23 @@ def main_loop(cfg):
     logdir = "./plot/"
     if not os.path.exists(logdir):
         os.makedirs(logdir)
-    reward_logger = RewardLogger(logdir + "dqn_full.steps", logdir + "dqn_full.rwd")
+    reward_logger = RewardLogger(
+        logdir + "dqn_rb_target.steps", logdir + "dqn_rb_target.rwd"
+    )
     for seed in range(cfg.algorithm.nb_seeds):
         cfg.algorithm.seed = seed
         torch.manual_seed(cfg.algorithm.seed)
-        run_dqn_full(cfg, reward_logger)
+        run_dqn(cfg, reward_logger)
         if seed < cfg.algorithm.nb_seeds - 1:
             reward_logger.new_episode()
     reward_logger.save()
     chrono.stop()
-    plotter = Plotter(logdir + "dqn_full.steps", logdir + "dqn_full.rwd")
-    plotter.plot_reward("dqn full", cfg.gym_env.env_name)
+    plotter = Plotter(logdir + "dqn_rb_target.steps", logdir + "dqn_rb_target.rwd")
+    plotter.plot_reward("qdn rb and target", cfg.gym_env.env_name)
 
 
 @hydra.main(
-    config_path="./configs/", config_name="dqn_full_cartpole.yaml", version_base="1.1"
+    config_path="./configs/", config_name="dqn_cartpole.yaml", version_base="1.1"
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))

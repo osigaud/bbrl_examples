@@ -123,7 +123,6 @@ def compute_critic_loss(cfg, reward, must_bootstrap, v_value):
 
 def compute_actor_loss(action_logprob, reward, must_bootstrap):
     actor_loss = action_logprob * reward.detach() * must_bootstrap.int()
-    # print("actor_loss", actor_loss)
     return actor_loss.mean()
 
 
@@ -167,8 +166,6 @@ def run_reinforce(cfg):
         ]
         critic_agent(train_workspace, stop_variable="env/done")
         v_value = train_workspace["v_value"]
-        # print(obs, done, truncated, reward, action)
-        # print("val", v_value)
 
         for i in range(cfg.algorithm.n_envs):
             nb_steps += len(action[:, i])
@@ -180,10 +177,9 @@ def run_reinforce(cfg):
 
         critic_loss = compute_critic_loss(cfg, reward, must_bootstrap, v_value)
 
-        reward = apply_sum(reward)
-        # reward = apply_discounted_sum(cfg, reward)
+        # reward = apply_sum(reward)
+        reward = apply_discounted_sum(cfg, reward)
         # reward = apply_discounted_sum_minus_baseline(cfg, reward, v_value)
-        # print("logp", action_logprobs)
         actor_loss = compute_actor_loss(action_logprobs, reward, must_bootstrap)
 
         entropy_loss = torch.mean(train_workspace["entropy"])
@@ -203,13 +199,6 @@ def run_reinforce(cfg):
         cumulated_reward = train_workspace["env/cumulated_reward"][-1]
         mean = cumulated_reward.mean()
         logger.add_log("reward", mean, nb_steps)
-
-        for r in cumulated_reward:
-            if r > 499:
-                print("r", cumulated_reward)
-                print("action_logprobs", action_logprobs)
-                print("actor_loss", actor_loss)
-                print("loss", loss)
         print(f"episode: {episode}, reward: {mean}")
 
         if cfg.save_best and mean > best_reward:
@@ -251,5 +240,13 @@ def main(cfg: DictConfig):
     chrono.stop()
 
 
+def calc():
+    sum = 0
+    for i in range(500):
+        sum += 0.95**i
+    print(sum)
+
+
 if __name__ == "__main__":
+    # calc()
     main()

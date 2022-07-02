@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
@@ -267,12 +268,48 @@ class ContinuousDeterministicActor(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
-        self.model = build_mlp(layers, activation=nn.ReLU())
+        self.model = build_mlp(
+            layers, activation=nn.ReLU(), output_activation=nn.Tanh()
+        )
 
-    def forward(self, t, **kwargs):
+    def forward(self, t):
         obs = self.get(("env/env_obs", t))
         action = self.model(obs)
         self.set(("action", t), action)
 
-    def predict_action(self, obs):
+    def predict_action(self, obs, stochastic):
+        assert (
+            not stochastic
+        ), "ContinuousDeterministicActor cannot provide stochastic predictions"
         return self.model(obs)
+
+
+class OUNoise:
+    """
+    Ornstein Uhlenbeck process noise for actions as suggested by DDPG paper
+    """
+
+    def __init__(self, mean, std_dev, theta=0.15, dt=1e-2, x0=None):
+        self.theta = theta
+        self.mean = mean
+        self.std_dev = std_dev
+        self.dt = dt
+        self.x0 = x0
+        self.reset()
+        self.x_prev = 0
+
+    def __call__(self):
+        # Generating correlated gaussian noise
+        x = (
+            self.x_prev
+            + self.theta * (self.mean - self.x_prev) * self.dt
+            + self.std_dev * math.sqrt(self.dt) * torch.randn(self.mean.shape)
+        )
+        self.x_prev = x
+        return x
+
+    def reset(self):
+        if self.x0 is not None:
+            self.x_prev = self.x0
+        else:
+            self.x_prev = torch.zeros_like(self.mean)
