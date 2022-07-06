@@ -18,7 +18,7 @@ from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
 
-from bbrl_examples.models.actors import EGreedyActionSelector
+from bbrl_examples.models.exploration_agents import EGreedyActionSelector
 from bbrl_examples.models.critics import DiscreteQAgent
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger, RewardLogger
@@ -100,7 +100,7 @@ def run_dqn(cfg, reward_logger):
     # In the training loop, calling the agent() and critic_agent()
     # will take the workspace as parameter
     train_workspace = Workspace()  # Used for training
-    rb = ReplayBuffer(max_size=1e5)
+    rb = ReplayBuffer(max_size=cfg.algorithm.buffer_size)
 
     # 6) Configure the optimizer over the a2c agent
     optimizer = setup_optimizers(cfg, q_agent)

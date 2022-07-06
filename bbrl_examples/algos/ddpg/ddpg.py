@@ -12,17 +12,18 @@ from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
 from bbrl.agents import Agents, TemporalAgent
+from bbrl.utils.replay_buffer import ReplayBuffer
+from bbrl.utils.chrono import Chrono
 
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
 from bbrl_examples.models.actors import ContinuousDeterministicActor
 from bbrl_examples.models.critics import ContinuousQAgent
-from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger, RewardLogger
 from bbrl_examples.models.plotters import Plotter
-from bbrl.utils.chrono import Chrono
+from bbrl_examples.models.exploration_agents import AddGaussianNoise
 
 # HYDRA_FULL_ERROR = 1
 
@@ -47,7 +48,8 @@ def create_ddpg_agent(cfg, train_env_agent, eval_env_agent):
         obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
     )
     # target_actor = copy.deepcopy(actor)
-    tr_agent = Agents(train_env_agent, actor)  # TODO : add OU noise
+    noise_agent = AddGaussianNoise(cfg.algorithm.action_noise)
+    tr_agent = Agents(train_env_agent, actor, noise_agent)  # TODO : add OU noise
     ev_agent = Agents(eval_env_agent, actor)
 
     # Get an agent that is executed on a complete workspace
@@ -77,8 +79,17 @@ def setup_optimizers(cfg, actor, critic):
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values):
     # Compute temporal difference
     q_next = target_q_values
-    target = reward[:-1] + cfg.algorithm.discount_factor * q_next * must_bootstrap.int()
-    td = target - q_values
+    # print("reward", reward[:-1][0])
+    # print("mb", must_bootstrap.int())
+    # print("q_next", q_next.squeeze(-1))
+    target = (
+        reward[:-1][0]
+        + cfg.algorithm.discount_factor * q_next.squeeze(-1) * must_bootstrap.int()
+    )
+    # print("target", target)
+    # print("q", q_values.squeeze(-1))
+    td = target - q_values.squeeze(-1)
+    # print("td", td)
     # Compute critic loss
     td_error = td**2
     critic_loss = td_error.mean()
@@ -123,7 +134,7 @@ def run_ddpg_naked(cfg, reward_logger):
     target_q_agent = TemporalAgent(target_critic)
 
     train_workspace = Workspace()
-    rb = ReplayBuffer(max_size=1e5)
+    rb = ReplayBuffer(max_size=cfg.algorithm.buffer_size)
 
     # Configure the optimizer
     actor_optimizer, critic_optimizer = setup_optimizers(cfg, actor, critic)
@@ -143,15 +154,14 @@ def run_ddpg_naked(cfg, reward_logger):
         transition_workspace = train_workspace.get_transitions()
         action = transition_workspace["action"]
         nb_steps += action[0].shape[0]
-
         rb.put(transition_workspace)
         rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
 
         done, truncated, reward, action = rb_workspace[
             "env/done", "env/truncated", "env/reward", "action"
         ]
-
-        if nb_steps > cfg.algorithm.start_learning:
+        # print(f"done {done}, reward {reward}, action {action}")
+        if nb_steps > cfg.algorithm.learning_starts:
             # Determines whether values of the critic should be propagated
             # True if the episode reached a time limit or if the task was not done
             # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
@@ -160,18 +170,22 @@ def run_ddpg_naked(cfg, reward_logger):
             # Critic update
             # compute q_values: at t, we have Q(s,a) from the (s,a) in the RB
             q_agent(rb_workspace, t=0, n_steps=1)
+            q_values = rb_workspace["q_value"]
+            # print(f"q_values ante : {q_values}")
 
             with torch.no_grad():
                 # replace the action at t+1 in the RB with \pi(s_{t+1}), to compute Q(s_{t+1}, \pi(s_{t+1}) below
                 ag_actor(rb_workspace, t=1, n_steps=1)
                 # compute q_values: at t+1 we have Q(s_{t+1}, \pi(s_{t+1})
                 target_q_agent(rb_workspace, t=1, n_steps=1)
+                # q_agent(rb_workspace, t=1, n_steps=1)
             # finally q_values contains the above collection at t=0 and t=1
-            q_values = rb_workspace["q_value"]
+            post_q_values = rb_workspace["q_value"]
+            # print(f"q_values post : {post_q_values[1]}")
 
             # Compute critic loss
             critic_loss = compute_critic_loss(
-                cfg, reward, must_bootstrap, q_values[0], q_values[1]
+                cfg, reward, must_bootstrap, q_values[0], post_q_values[1]
             )
             logger.add_log("critic_loss", critic_loss, nb_steps)
             critic_optimizer.zero_grad()
@@ -191,14 +205,12 @@ def run_ddpg_naked(cfg, reward_logger):
             actor_loss = compute_actor_loss(q_values)
             logger.add_log("actor_loss", actor_loss, nb_steps)
             # if -25 < actor_loss < 0 and nb_steps > 2e5:
-            # if False:
             actor_optimizer.zero_grad()
             actor_loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 actor.parameters(), cfg.algorithm.max_grad_norm
             )
             actor_optimizer.step()
-
             # Soft update of target q function
             tau = cfg.algorithm.tau_target
             soft_update_params(critic, target_critic, tau)
@@ -258,7 +270,7 @@ def main_loop(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ddpg_cartpole.yaml",
+    config_name="ddpg_pendulum.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

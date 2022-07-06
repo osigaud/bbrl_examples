@@ -1,4 +1,3 @@
-import math
 import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
@@ -6,47 +5,6 @@ from torch.distributions import Bernoulli
 
 from bbrl_examples.models.shared_models import build_mlp, build_backbone
 from bbrl.agents.agent import Agent
-
-
-class EGreedyActionSelector(Agent):
-    def __init__(self, epsilon):
-        super().__init__()
-        self.epsilon = epsilon
-
-    def forward(self, t, **kwargs):
-        q_values = self.get(("q_values", t))
-        nb_actions = q_values.size()[1]
-        size = q_values.size()[0]
-        is_random = torch.rand(size).lt(self.epsilon).float()
-        random_action = torch.randint(low=0, high=nb_actions, size=(size,))
-        max_action = q_values.max(1)[1]
-        action = is_random * random_action + (1 - is_random) * max_action
-        action = action.long()
-        self.set(("action", t), action)
-
-
-class SoftmaxActionSelector(Agent):
-    def __init__(self, temperature):
-        super().__init__()
-        self.temperature = temperature
-
-    def forward(self, t, **kwargs):
-        q_values = self.get(("q_values", t))
-        probs = torch.softmax(q_values, dim=-1)
-        action = torch.distributions.Categorical(probs).sample()
-        self.set(("action", t), action)
-
-
-class RandomDiscreteActor(Agent):
-    def __init__(self, nb_actions):
-        super().__init__()
-        self.nb_actions = nb_actions
-
-    def forward(self, t, **kwargs):
-        obs = self.get(("env/env_obs", t))
-        size = obs.size()[0]
-        action = torch.randint(low=0, high=self.nb_actions, size=(size,))
-        self.set(("action", t), action)
 
 
 class ProbAgent(Agent):
@@ -282,34 +240,3 @@ class ContinuousDeterministicActor(Agent):
             not stochastic
         ), "ContinuousDeterministicActor cannot provide stochastic predictions"
         return self.model(obs)
-
-
-class OUNoise:
-    """
-    Ornstein Uhlenbeck process noise for actions as suggested by DDPG paper
-    """
-
-    def __init__(self, mean, std_dev, theta=0.15, dt=1e-2, x0=None):
-        self.theta = theta
-        self.mean = mean
-        self.std_dev = std_dev
-        self.dt = dt
-        self.x0 = x0
-        self.reset()
-        self.x_prev = 0
-
-    def __call__(self):
-        # Generating correlated gaussian noise
-        x = (
-            self.x_prev
-            + self.theta * (self.mean - self.x_prev) * self.dt
-            + self.std_dev * math.sqrt(self.dt) * torch.randn(self.mean.shape)
-        )
-        self.x_prev = x
-        return x
-
-    def reset(self):
-        if self.x0 is not None:
-            self.x_prev = self.x0
-        else:
-            self.x_prev = torch.zeros_like(self.mean)

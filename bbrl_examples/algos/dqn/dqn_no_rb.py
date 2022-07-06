@@ -17,7 +17,7 @@ from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
 
-from bbrl_examples.models.actors import EGreedyActionSelector
+from bbrl_examples.models.exploration_agents import EGreedyActionSelector
 from bbrl_examples.models.critics import DiscreteQAgent
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger, RewardLogger

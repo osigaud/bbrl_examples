@@ -13,21 +13,28 @@
       max_grad_norm: 0.5
       n_envs: 8
       n_steps: 100
-      batch_size: 10
-      tau_target: 0.8
+      buffer_size: 200000
+      batch_size: 256
+      tau_target: 0.1
       eval_interval: 1000
+      learning_starts: 10000
       nb_evals: 10
       gae: 0.8
+      action_noise: 0.01
       max_epochs: 2500
-      discount_factor: 0.95
+      discount_factor: 0.98
       architecture:
-        actor_hidden_size: [64, 64]
-        critic_hidden_size: [256, 256]
+        actor_hidden_size: [400, 300]
+        critic_hidden_size: [400, 300]
 
     gym_env:
       classname: __main__.make_gym_env
       env_name: Pendulum-v1
 
-    optimizer:
+    actor_optimizer:
       classname: torch.optim.Adam
-      lr: 2.3e-3
+      lr: 1e-3
+
+    critic_optimizer:
+      classname: torch.optim.Adam
+      lr: 1e-3

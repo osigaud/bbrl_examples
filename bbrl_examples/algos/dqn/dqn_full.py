@@ -18,7 +18,7 @@ from bbrl.agents import Agents, TemporalAgent
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
-from bbrl_examples.models.actors import EGreedyActionSelector
+from bbrl_examples.models.exploration_agents import EGreedyActionSelector
 from bbrl_examples.models.critics import DiscreteQAgent
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger, RewardLogger
@@ -63,7 +63,6 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, 
     max_q = target_q_values[1].max(-1)[0].detach()
     target = reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
     act = action[0].unsqueeze(-1)
-    print(act)
     qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
     td = target - qvals
     # Compute critic loss
@@ -98,7 +97,7 @@ def run_dqn_full(cfg, reward_logger):
 
     # Note that no parameter is needed to create the workspace.
     train_workspace = Workspace()  # Used for training
-    rb = ReplayBuffer(max_size=1e5)
+    rb = ReplayBuffer(max_size=cfg.algorithm.buffer_size)
 
     # 6) Configure the optimizer over the agent
     optimizer = setup_optimizers(cfg, q_agent)
