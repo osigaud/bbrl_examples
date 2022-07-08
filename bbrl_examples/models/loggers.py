@@ -28,13 +28,14 @@ class RewardLogger:
     def add(self, nb_steps, reward):
         if self.episode == 0:
             self.all_steps.append(nb_steps)
-        self.all_rewards[self.episode].append(reward)
+        self.all_rewards[self.episode].append(reward.item())
 
     def new_episode(self):
         self.episode += 1
         self.all_rewards.append([])
 
     def save(self):
+        # print("reward loader save:", self.all_steps,  self.all_rewards)
         with open(self.steps_filename, "ab") as f:
             np.save(f, self.all_steps)
         with open(self.rewards_filename, "ab") as f:

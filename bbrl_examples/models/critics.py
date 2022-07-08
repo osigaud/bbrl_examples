@@ -70,4 +70,4 @@ class DiscreteQAgent(Agent):
 
     def predict_value(self, obs, action):
         q_values = self.model(obs).squeeze(-1)
-        return q_values[0][action]
+        return q_values[action[0].int()]

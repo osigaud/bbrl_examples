@@ -55,7 +55,7 @@ class Plotter:
 
         loader = RewardLoader(self.steps_filename, self.rewards_filename)
         steps, rewards = loader.load()
-        print(steps, rewards)
+        # print(steps, rewards)
         # steps, rewards = equalize_lengths(steps, rewards)
 
         if mode == "best":
@@ -152,7 +152,7 @@ class CommonPlotter:
             algo_name = reward_file.split(".")[0]
             loader = RewardLoader(self.steps_filename, self.logdir + reward_file)
             steps, rewards = loader.load()
-            print(steps, rewards)
+            print(steps.shape, rewards.shape)
 
             if mode == "best":
                 best = rewards.sum(axis=1).argmax()
@@ -160,6 +160,7 @@ class CommonPlotter:
             elif mode == "max":
                 mean = np.max(rewards, axis=0)
             else:
+                print(rewards)
                 std = rewards.std(axis=0)
                 mean = rewards.mean(axis=0)
                 ax.fill_between(

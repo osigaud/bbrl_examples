@@ -9,8 +9,8 @@
 
     algorithm:
       seed: 4
-      n_envs: 2
-      nb_episodes: 100
+      n_envs: 1
+      nb_episodes: 10
       nb_evals: 10
       discount_factor: 0.95
       entropy_coef: 1

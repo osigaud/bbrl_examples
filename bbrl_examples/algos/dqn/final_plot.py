@@ -2,6 +2,9 @@ import sys
 import os
 
 from bbrl_examples.models.plotters import CommonPlotter
+import matplotlib
+
+matplotlib.use("TkAgg")
 
 
 def main():

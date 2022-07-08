@@ -26,6 +26,9 @@ from bbrl_examples.models.plotters import Plotter
 from bbrl.utils.chrono import Chrono
 
 # HYDRA_FULL_ERROR = 1
+import matplotlib
+
+matplotlib.use("TkAgg")
 
 
 # Create the DQN Agent
@@ -122,12 +125,13 @@ def run_dqn_full(cfg, reward_logger):
             train_agent(
                 train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True
             )
-
         transition_workspace = train_workspace.get_transitions()
+
         action = transition_workspace["action"]
         nb_steps += action[0].shape[0]
 
         rb.put(transition_workspace)
+        # rb.print_obs()
 
         rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
 

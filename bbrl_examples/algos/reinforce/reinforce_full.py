@@ -230,7 +230,7 @@ def run_reinforce(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="reinforce_cartpole.yaml",  # debugv.yaml",
+    config_name="reinforce_debugv.yaml",  # cartpole.yaml",  #
     version_base="1.1",
 )
 def main(cfg: DictConfig):
