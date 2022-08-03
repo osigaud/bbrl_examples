@@ -15,10 +15,10 @@
       buffer_size: 1e5
       max_grad_norm: 0.5
       n_envs: 1
-      n_steps: 100
+      n_steps: 64
       batch_size: 64
       eval_interval: 2000
-      start_step: 1000
+      learning_starts: 2000
       target_critic_update: 10000
       nb_evals: 10
       gae: 0.8

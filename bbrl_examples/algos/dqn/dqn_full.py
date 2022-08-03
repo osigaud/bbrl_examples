@@ -153,7 +153,7 @@ def run_dqn_full(cfg, reward_logger):
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
-        if rb.size() > cfg.algorithm.start_step:
+        if rb.size() > cfg.algorithm.learning_starts:
             # Compute critic loss
             critic_loss = compute_critic_loss(
                 cfg, reward, must_bootstrap, q_values, target_q_values, action
@@ -168,10 +168,9 @@ def run_dqn_full(cfg, reward_logger):
                 q_agent.parameters(), cfg.algorithm.max_grad_norm
             )
             optimizer.step()
-
-        if nb_steps - tmp_steps2 > cfg.algorithm.target_critic_update:
-            tmp_steps2 = nb_steps
-            target_q_agent.agent = copy.deepcopy(q_agent.agent)
+            if nb_steps - tmp_steps2 > cfg.algorithm.target_critic_update:
+                tmp_steps2 = nb_steps
+                target_q_agent.agent = copy.deepcopy(q_agent.agent)
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
