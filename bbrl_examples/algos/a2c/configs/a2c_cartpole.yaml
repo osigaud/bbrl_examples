@@ -9,6 +9,7 @@
 
     algorithm:
       seed: 4
+      max_grad_norm: 0.5
       n_envs: 8
       n_steps: 20
       eval_interval: 2000

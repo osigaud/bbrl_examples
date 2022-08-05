@@ -30,6 +30,10 @@ from bbrl.visu.visu_critics import plot_critic
 
 # HYDRA_FULL_ERROR = 1
 
+import matplotlib
+
+matplotlib.use("TkAgg")
+
 
 # Create the A2C Agent
 def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
@@ -92,7 +96,7 @@ def compute_actor_loss(action_logp, td):
     return a2c_loss.mean()
 
 
-def run_a2c(cfg, max_grad_norm=0.5):
+def run_a2c(cfg):
     # 1)  Build the  logger
     chrono = Chrono()
     logger = Logger(cfg)
@@ -155,7 +159,8 @@ def run_a2c(cfg, max_grad_norm=0.5):
             "action",
             "action_logprobs",
         ]
-        nb_steps += len(action[0]) * cfg.algorithm.n_envs
+
+        nb_steps += action[0].shape[0]
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
@@ -173,14 +178,16 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
         # Compute the total loss
         loss = (
-            -cfg.algorithm.entropy_coef * entropy_loss
-            + cfg.algorithm.critic_coef * critic_loss
+            cfg.algorithm.critic_coef * critic_loss
+            - cfg.algorithm.entropy_coef * entropy_loss
             - cfg.algorithm.a2c_coef * a2c_loss
         )
 
         optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(a2c_agent.parameters(), max_grad_norm)
+        torch.nn.utils.clip_grad_norm_(
+            a2c_agent.parameters(), cfg.algorithm.max_grad_norm
+        )
         optimizer.step()
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
@@ -190,7 +197,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)
-            print(f"epoch: {epoch}, reward: {mean}")
+            print(f"nb_steps: {nb_steps}, reward: {mean}")
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
                 directory = "./a2c_policies/"

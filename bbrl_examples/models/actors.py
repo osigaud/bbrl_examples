@@ -45,7 +45,7 @@ class DiscreteActor(Agent):
             [state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU()
         )
 
-    def forward(self, t, stochastic, **kwargs):
+    def forward(self, t, stochastic, predict_proba, **kwargs):
         """
         Compute the action given either a time step (looking into the workspace)
         or an observation (in kwargs)
@@ -56,18 +56,22 @@ class DiscreteActor(Agent):
             observation = self.get(("env/env_obs", t))
         scores = self.model(observation)
         probs = torch.softmax(scores, dim=-1)
-
-        if stochastic:
-            action = torch.distributions.Categorical(probs).sample()
+        if predict_proba:
+            action = self.get(("action", t))
+            log_prob = probs[torch.arange(probs.size()[0]), action].log()
+            self.set(("logprob_predict", t), log_prob)
         else:
-            action = scores.argmax(1)
+            if stochastic:
+                action = torch.distributions.Categorical(probs).sample()
+            else:
+                action = scores.argmax(1)
 
-        entropy = torch.distributions.Categorical(probs).entropy()
-        log_probs = probs[torch.arange(probs.size()[0]), action].log()
+            entropy = torch.distributions.Categorical(probs).entropy()
+            log_probs = probs[torch.arange(probs.size()[0]), action].log()
 
-        self.set(("action", t), action)
-        self.set(("action_logprobs", t), log_probs)
-        self.set(("entropy", t), entropy)
+            self.set(("action", t), action)
+            self.set(("action_logprobs", t), log_probs)
+            self.set(("entropy", t), entropy)
 
     def predict_action(self, obs, stochastic):
         scores = self.model(obs)
@@ -126,18 +130,25 @@ class TunableVarianceContinuousActor(Agent):
         self.std_param = nn.parameter.Parameter(init_variance)
         self.soft_plus = torch.nn.Softplus()
 
-    def forward(self, t, stochastic, **kwargs):
+    def forward(self, t, stochastic, predict_proba):
         obs = self.get(("env/env_obs", t))
-        mean = self.model(obs)
-        dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
-        self.set(("entropy", t), dist.entropy())
-        if stochastic:
-            action = dist.sample()
+        if predict_proba:
+            action = self.get(("action", t))
+            mean = self.model(obs)
+            dist = Normal(mean, self.soft_plus(self.std_param))
+            log_prob = dist.log_prob(action).sum(axis=-1)
+            self.set(("logprob_predict", t), log_prob)
         else:
-            action = mean
-        log_prob = dist.log_prob(action).sum(axis=-1)
-        self.set(("action", t), action)
-        self.set(("action_logprobs", t), log_prob)
+            mean = self.model(obs)
+            dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
+            self.set(("entropy", t), dist.entropy())
+            if stochastic:
+                action = dist.sample()
+            else:
+                action = mean
+            log_prob = dist.log_prob(action).sum(axis=-1)
+            self.set(("action", t), action)
+            self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic):
         mean = self.model(obs)
