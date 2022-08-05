@@ -1,6 +1,5 @@
 import sys
 import os
-import copy
 
 import torch
 import torch.nn as nn
@@ -12,18 +11,18 @@ from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
 from bbrl.agents import Agents, TemporalAgent
-from bbrl.utils.replay_buffer import ReplayBuffer
 from bbrl.utils.chrono import Chrono
+
+from bbrl.utils.functionalb import gae
 
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
-from bbrl_examples.models.actors import ContinuousDeterministicActor
-from bbrl_examples.models.critics import ContinuousQAgent
+from bbrl_examples.models.critics import VAgent
+from bbrl_examples.models.actors import TunableVarianceContinuousActor
+from bbrl_examples.models.actors import DiscreteActor
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger, RewardLogger
-from bbrl_examples.models.plotters import Plotter
-from bbrl_examples.models.exploration_agents import AddGaussianNoise
 
 # HYDRA_FULL_ERROR = 1
 
@@ -32,31 +31,31 @@ import matplotlib
 matplotlib.use("TkAgg")
 
 
-def soft_update_params(net, target_net, tau):
-    for param, target_param in zip(net.parameters(), target_net.parameters()):
-        target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
-
-
 # Create the DDPG Agent
-def create_ddpg_agent(cfg, train_env_agent, eval_env_agent):
+def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
-    critic = ContinuousQAgent(
-        obs_size, cfg.algorithm.architecture.critic_hidden_size, act_size
+    if train_env_agent.is_continuous_action():
+        action_agent = TunableVarianceContinuousActor(
+            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
+        )
+        # print_agent = PrintAgent()
+    else:
+        # action_agent = BernoulliActor(obs_size, cfg.algorithm.architecture.hidden_size)
+        action_agent = DiscreteActor(
+            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
+        )
+    tr_agent = Agents(train_env_agent, action_agent)
+    ev_agent = Agents(eval_env_agent, action_agent)
+
+    critic_agent = TemporalAgent(
+        VAgent(obs_size, cfg.algorithm.architecture.critic_hidden_size)
     )
-    target_critic = copy.deepcopy(critic)
-    actor = ContinuousDeterministicActor(
-        obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
-    )
-    # target_actor = copy.deepcopy(actor)
-    noise_agent = AddGaussianNoise(cfg.algorithm.action_noise)
-    tr_agent = Agents(train_env_agent, actor, noise_agent)  # TODO : add OU noise
-    ev_agent = Agents(eval_env_agent, actor)
 
     # Get an agent that is executed on a complete workspace
     train_agent = TemporalAgent(tr_agent)
     eval_agent = TemporalAgent(ev_agent)
     train_agent.seed(cfg.algorithm.seed)
-    return train_agent, eval_agent, actor, critic, target_critic  # , target_actor
+    return train_agent, eval_agent, critic_agent
 
 
 def make_gym_env(env_name):
@@ -64,43 +63,36 @@ def make_gym_env(env_name):
 
 
 # Configure the optimizer
-def setup_optimizers(cfg, actor, critic):
-    actor_optimizer_args = get_arguments(cfg.actor_optimizer)
-    parameters = actor.parameters()
-    actor_optimizer = get_class(cfg.actor_optimizer)(parameters, **actor_optimizer_args)
-    critic_optimizer_args = get_arguments(cfg.critic_optimizer)
-    parameters = critic.parameters()
-    critic_optimizer = get_class(cfg.critic_optimizer)(
-        parameters, **critic_optimizer_args
-    )
-    return actor_optimizer, critic_optimizer
+def setup_optimizer(cfg, action_agent, critic_agent):
+    optimizer_args = get_arguments(cfg.optimizer)
+    parameters = nn.Sequential(action_agent, critic_agent).parameters()
+    optimizer = get_class(cfg.optimizer)(parameters, **optimizer_args)
+    return optimizer
 
 
-def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values):
-    # Compute temporal difference
-    q_next = target_q_values
-    # print("reward", reward[:-1][0])
-    # print("mb", must_bootstrap.int())
-    # print("q_next", q_next.squeeze(-1))
-    target = (
-        reward[:-1][0]
-        + cfg.algorithm.discount_factor * q_next.squeeze(-1) * must_bootstrap.int()
+def compute_critic_loss(cfg, reward, must_bootstrap, v_value):
+    # Compute temporal difference with GAE
+    advantages = gae(
+        v_value,
+        reward,
+        must_bootstrap,
+        cfg.algorithm.discount_factor,
+        cfg.algorithm.gae,
     )
-    # print("target", target)
-    # print("q", q_values.squeeze(-1))
-    td = target - q_values.squeeze(-1)
-    # print("td", td)
     # Compute critic loss
-    td_error = td**2
+    td_error = advantages**2
     critic_loss = td_error.mean()
-    return critic_loss
+    return critic_loss, advantages
 
 
-def compute_actor_loss(q_values):
-    return -q_values.mean()
+def compute_policy_loss(advantages, ratio, clip_range):
+    policy_loss_1 = advantages * ratio
+    policy_loss_2 = advantages * torch.clamp(ratio, 1 - clip_range, 1 + clip_range)
+    policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
+    return policy_loss
 
 
-def run_ddpg_naked(cfg, reward_logger):
+def run_ppo(cfg, reward_logger):
     # 1)  Build the  logger
     logger = Logger(cfg)
     best_reward = -10e9
@@ -120,26 +112,19 @@ def run_ddpg_naked(cfg, reward_logger):
     )
 
     # 3) Create the DDPG Agent
-    (
-        train_agent,
-        eval_agent,
-        actor,
-        critic,
-        # target_actor,
-        target_critic,
-    ) = create_ddpg_agent(cfg, train_env_agent, eval_env_agent)
-    ag_actor = TemporalAgent(actor)
-    # ag_target_actor = TemporalAgent(target_actor)
-    q_agent = TemporalAgent(critic)
-    target_q_agent = TemporalAgent(target_critic)
+    train_agent, eval_agent, critic_agent = create_ppo_agent(
+        cfg, train_env_agent, eval_env_agent
+    )
 
     train_workspace = Workspace()
-    rb = ReplayBuffer(max_size=cfg.algorithm.buffer_size)
 
     # Configure the optimizer
-    actor_optimizer, critic_optimizer = setup_optimizers(cfg, actor, critic)
+    optimizer = setup_optimizer(cfg, train_agent, critic_agent)
     nb_steps = 0
     tmp_steps = 0
+
+    old_action_logp = None
+    old_v_value = None
 
     # Training loop
     for epoch in range(cfg.algorithm.max_epochs):
@@ -147,74 +132,96 @@ def run_ddpg_naked(cfg, reward_logger):
         if epoch > 0:
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
-            train_agent(train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1)
+            train_agent(
+                train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True
+            )
         else:
-            train_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps)
+            train_agent(
+                train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True
+            )
+
+        # Compute the critic value over the whole workspace
+        critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
 
         transition_workspace = train_workspace.get_transitions()
         action = transition_workspace["action"]
         nb_steps += action[0].shape[0]
-        rb.put(transition_workspace)
-        rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
 
-        done, truncated, reward, action = rb_workspace[
-            "env/done", "env/truncated", "env/reward", "action"
+        action_logp = transition_workspace["action_logprobs"]
+
+        done, truncated, reward, action, v_value = transition_workspace[
+            "env/done", "env/truncated", "env/reward", "action", "v_value"
         ]
-        # print(f"done {done}, reward {reward}, action {action}")
-        if nb_steps > cfg.algorithm.learning_starts:
-            # Determines whether values of the critic should be propagated
-            # True if the episode reached a time limit or if the task was not done
-            # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
-            must_bootstrap = torch.logical_or(~done[1], truncated[1])
+        # Determines whether values of the critic should be propagated
+        # True if the episode reached a time limit or if the task was not done
+        # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
+        must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
-            # Critic update
-            # compute q_values: at t, we have Q(s,a) from the (s,a) in the RB
-            q_agent(rb_workspace, t=0, n_steps=1)
-            q_values = rb_workspace["q_value"]
-            # print(f"q_values ante : {q_values}")
+        if epoch == 0:
+            old_action_logp = action_logp
+            old_v_value = v_value
 
-            with torch.no_grad():
-                # replace the action at t+1 in the RB with \pi(s_{t+1}), to compute Q(s_{t+1}, \pi(s_{t+1}) below
-                ag_actor(rb_workspace, t=1, n_steps=1)
-                # compute q_values: at t+1 we have Q(s_{t+1}, \pi(s_{t+1})
-                target_q_agent(rb_workspace, t=1, n_steps=1)
-                # q_agent(rb_workspace, t=1, n_steps=1)
-            # finally q_values contains the above collection at t=0 and t=1
-            post_q_values = rb_workspace["q_value"]
-            # print(f"q_values post : {post_q_values[1]}")
+        ratios = (action_logp - old_action_logp).exp()
+        ratios = ratios[:-1]
 
-            # Compute critic loss
-            critic_loss = compute_critic_loss(
-                cfg, reward, must_bootstrap, q_values[0], post_q_values[1]
+        if cfg.algorithm.clip_range_vf > 0:
+            # Clip the difference between old and new values
+            # NOTE: this depends on the reward scaling
+            v_value = old_v_value + torch.clamp(
+                v_value - old_v_value,
+                -cfg.algorithm.clip_range_vf,
+                cfg.algorithm.clip_range_vf,
             )
-            logger.add_log("critic_loss", critic_loss, nb_steps)
-            critic_optimizer.zero_grad()
-            critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                critic.parameters(), cfg.algorithm.max_grad_norm
-            )
-            critic_optimizer.step()
 
-            # Actor update
-            # Now we determine the actions the current policy would take in the states from the RB
-            ag_actor(rb_workspace, t=0, n_steps=1)
-            # We determine the Q values resulting from actions of the current policy
-            q_agent(rb_workspace, t=0, n_steps=1)
-            # and we back-propagate the corresponding loss to maximize the Q values
-            q_values = rb_workspace["q_value"]
-            actor_loss = compute_actor_loss(q_values)
-            logger.add_log("actor_loss", actor_loss, nb_steps)
-            # if -25 < actor_loss < 0 and nb_steps > 2e5:
-            actor_optimizer.zero_grad()
-            actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                actor.parameters(), cfg.algorithm.max_grad_norm
+        critic_loss, advantages = compute_critic_loss(
+            cfg, reward, must_bootstrap, v_value
+        )
+        logger.add_log("critic_loss", critic_loss, nb_steps)
+
+        policy_loss = compute_policy_loss(advantages, ratios, cfg.algorithm.clip_range)
+        logger.add_log("actor_loss", policy_loss, nb_steps)
+
+        # Entropy loss favor exploration
+        entropy_loss = torch.mean(train_workspace["entropy"])
+
+        loss = (
+            cfg.algorithm.policy_coef * policy_loss
+            + cfg.algorithm.entropy_coef * entropy_loss
+            + cfg.algorithm.critic_coef * critic_loss
+        )
+
+        # Calculate approximate form of reverse KL Divergence for early stopping
+        # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
+        # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
+        # and Schulman blog: http://joschu.net/blog/kl-approx.html
+        """
+        with torch.no_grad():
+            log_ratio = log_prob - rollout_data.old_log_prob
+            approx_kl_div = (
+                torch.mean((torch.exp(log_ratio) - 1) - log_ratio).cpu().numpy()
             )
-            actor_optimizer.step()
-            # Soft update of target q function
-            tau = cfg.algorithm.tau_target
-            soft_update_params(critic, target_critic, tau)
-            # soft_update_params(actor, target_actor, tau)
+            approx_kl_divs.append(approx_kl_div)
+
+        if cfg.algorithm.target_kl is not None and approx_kl_div > 1.5 * cfg.algorithm.target_kl:
+            continue_training = False
+            if cfg.logger.verbose == True:
+                print(
+                    f"Early stopping at step {epoch} due to reaching max kl: {approx_kl_div:.2f}"
+                )
+            break
+        """
+        optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            critic_agent.parameters(), cfg.algorithm.max_grad_norm
+        )
+        torch.nn.utils.clip_grad_norm_(
+            train_agent.parameters(), cfg.algorithm.max_grad_norm
+        )
+        optimizer.step()
+
+        old_action_logp = action_logp
+        old_v_value = v_value
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
@@ -234,7 +241,7 @@ def run_ddpg_naked(cfg, reward_logger):
                 eval_agent.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(
-                        actor,
+                        train_agent,
                         eval_env_agent,
                         "./ddpg_plots/",
                         cfg.gym_env.env_name,
@@ -242,7 +249,7 @@ def run_ddpg_naked(cfg, reward_logger):
                         stochastic=False,
                     )
                     plot_critic(
-                        q_agent.agent,
+                        critic_agent.agent,
                         eval_env_agent,
                         "./ddpg_plots/",
                         cfg.gym_env.env_name,
@@ -259,7 +266,7 @@ def main_loop(cfg):
     for seed in range(cfg.algorithm.nb_seeds):
         cfg.algorithm.seed = seed
         torch.manual_seed(cfg.algorithm.seed)
-        run_ddpg_naked(cfg, reward_logger)
+        run_ppo(cfg, reward_logger)
         if seed < cfg.algorithm.nb_seeds - 1:
             reward_logger.new_episode()
     reward_logger.save()
@@ -270,7 +277,7 @@ def main_loop(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ddpg_cartpole.yaml",
+    config_name="ppo_cartpole.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):
