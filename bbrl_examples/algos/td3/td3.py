@@ -37,26 +37,38 @@ def soft_update_params(net, target_net, tau):
         target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
 
-# Create the DDPG Agent
-def create_ddpg_agent(cfg, train_env_agent, eval_env_agent):
+# Create the TD3 Agent
+def create_td3_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
-    critic = ContinuousQAgent(
+    critic_1 = ContinuousQAgent(
         obs_size, cfg.algorithm.architecture.critic_hidden_size, act_size
     )
-    target_critic = copy.deepcopy(critic)
+    target_critic_1 = copy.deepcopy(critic_1)
+    critic_2 = ContinuousQAgent(
+        obs_size, cfg.algorithm.architecture.critic_hidden_size, act_size
+    )
+    target_critic_2 = copy.deepcopy(critic_2)
     actor = ContinuousDeterministicActor(
         obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
     )
     # target_actor = copy.deepcopy(actor)
     noise_agent = AddGaussianNoise(cfg.algorithm.action_noise)
-    tr_agent = Agents(train_env_agent, actor, noise_agent)  # TODO : add OU noise
+    tr_agent = Agents(train_env_agent, actor, noise_agent)
     ev_agent = Agents(eval_env_agent, actor)
 
     # Get an agent that is executed on a complete workspace
     train_agent = TemporalAgent(tr_agent)
     eval_agent = TemporalAgent(ev_agent)
     train_agent.seed(cfg.algorithm.seed)
-    return train_agent, eval_agent, actor, critic, target_critic  # , target_actor
+    return (
+        train_agent,
+        eval_agent,
+        actor,
+        critic_1,
+        target_critic_1,
+        critic_2,
+        target_critic_2,
+    )
 
 
 def make_gym_env(env_name):
@@ -64,48 +76,46 @@ def make_gym_env(env_name):
 
 
 # Configure the optimizer
-def setup_optimizers(cfg, actor, critic):
+def setup_optimizers(cfg, actor, critic_1, critic_2):
     actor_optimizer_args = get_arguments(cfg.actor_optimizer)
     parameters = actor.parameters()
     actor_optimizer = get_class(cfg.actor_optimizer)(parameters, **actor_optimizer_args)
     critic_optimizer_args = get_arguments(cfg.critic_optimizer)
-    parameters = critic.parameters()
+    parameters = nn.Sequential(critic_1, critic_2).parameters()
     critic_optimizer = get_class(cfg.critic_optimizer)(
         parameters, **critic_optimizer_args
     )
     return actor_optimizer, critic_optimizer
 
 
-def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values):
+def compute_critic_loss(
+    cfg, reward, must_bootstrap, q_values_1, q_values_2, target_q_values
+):
     # Compute temporal difference
     q_next = target_q_values
-    # print("reward", reward[:-1][0])
-    # print("mb", must_bootstrap.int())
-    # print("q_next", q_next.squeeze(-1))
     target = (
         reward[:-1][0]
         + cfg.algorithm.discount_factor * q_next.squeeze(-1) * must_bootstrap.int()
     )
-    # print("target", target)
-    # print("q", q_values.squeeze(-1))
-    td = target - q_values.squeeze(-1)
-    # print("td", td)
-    # Compute critic loss
-    td_error = td**2
-    critic_loss = td_error.mean()
-    return critic_loss
+    td_1 = target - q_values_1.squeeze(-1)
+    td_2 = target - q_values_2.squeeze(-1)
+    td_error_1 = td_1**2
+    td_error_2 = td_2**2
+    critic_loss_1 = td_error_1.mean()
+    critic_loss_2 = td_error_2.mean()
+    return critic_loss_1, critic_loss_2
 
 
 def compute_actor_loss(q_values):
     return -q_values.mean()
 
 
-def run_ddpg(cfg, reward_logger):
+def run_td3(cfg, reward_logger):
     # 1)  Build the  logger
     logger = Logger(cfg)
     best_reward = -10e9
 
-    # 2) Create the environment agent
+    # 2) Create the environment agents
     train_env_agent = AutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
@@ -119,25 +129,27 @@ def run_ddpg(cfg, reward_logger):
         cfg.algorithm.seed,
     )
 
-    # 3) Create the DDPG Agent
+    # 3) Create the TD3 Agent
     (
         train_agent,
         eval_agent,
         actor,
-        critic,
-        # target_actor,
-        target_critic,
-    ) = create_ddpg_agent(cfg, train_env_agent, eval_env_agent)
+        critic_1,
+        target_critic_1,
+        critic_2,
+        target_critic_2,
+    ) = create_td3_agent(cfg, train_env_agent, eval_env_agent)
     ag_actor = TemporalAgent(actor)
     # ag_target_actor = TemporalAgent(target_actor)
-    q_agent = TemporalAgent(critic)
-    target_q_agent = TemporalAgent(target_critic)
-
+    q_agent_1 = TemporalAgent(critic_1)
+    target_q_agent_1 = TemporalAgent(target_critic_1)
+    q_agent_2 = TemporalAgent(critic_2)
+    target_q_agent_2 = TemporalAgent(target_critic_2)
     train_workspace = Workspace()
     rb = ReplayBuffer(max_size=cfg.algorithm.buffer_size)
 
     # Configure the optimizer
-    actor_optimizer, critic_optimizer = setup_optimizers(cfg, actor, critic)
+    actor_optimizer, critic_optimizer = setup_optimizers(cfg, actor, critic_1, critic_2)
     nb_steps = 0
     tmp_steps = 0
 
@@ -169,29 +181,40 @@ def run_ddpg(cfg, reward_logger):
 
             # Critic update
             # compute q_values: at t, we have Q(s,a) from the (s,a) in the RB
-            q_agent(rb_workspace, t=0, n_steps=1)
-            q_values = rb_workspace["q_value"]
-            # print(f"q_values ante : {q_values}")
+            q_agent_1(rb_workspace, t=0, n_steps=1)
+            q_values_1 = rb_workspace["q_value"]
+            q_agent_2(rb_workspace, t=0, n_steps=1)
+            q_values_2 = rb_workspace["q_value"]
 
             with torch.no_grad():
                 # replace the action at t+1 in the RB with \pi(s_{t+1}), to compute Q(s_{t+1}, \pi(s_{t+1}) below
                 ag_actor(rb_workspace, t=1, n_steps=1)
                 # compute q_values: at t+1 we have Q(s_{t+1}, \pi(s_{t+1})
-                target_q_agent(rb_workspace, t=1, n_steps=1)
-                # q_agent(rb_workspace, t=1, n_steps=1)
-            # finally q_values contains the above collection at t=0 and t=1
-            post_q_values = rb_workspace["q_value"]
-            # print(f"q_values post : {post_q_values[1]}")
+                target_q_agent_1(rb_workspace, t=1, n_steps=1)
+                post_q_values_1 = rb_workspace["q_value"]
+                target_q_agent_2(rb_workspace, t=1, n_steps=1)
+                post_q_values_2 = rb_workspace["q_value"]
 
+            post_q_values = torch.min(post_q_values_1, post_q_values_2).squeeze(-1)
             # Compute critic loss
-            critic_loss = compute_critic_loss(
-                cfg, reward, must_bootstrap, q_values[0], post_q_values[1]
+            critic_loss_1, critic_loss_2 = compute_critic_loss(
+                cfg,
+                reward,
+                must_bootstrap,
+                q_values_1[0],
+                q_values_2[0],
+                post_q_values[1],
             )
-            logger.add_log("critic_loss", critic_loss, nb_steps)
+            logger.add_log("critic_loss_1", critic_loss_1, nb_steps)
+            logger.add_log("critic_loss_2", critic_loss_2, nb_steps)
+            critic_loss = critic_loss_1 + critic_loss_2
             critic_optimizer.zero_grad()
             critic_loss.backward()
             torch.nn.utils.clip_grad_norm_(
-                critic.parameters(), cfg.algorithm.max_grad_norm
+                critic_1.parameters(), cfg.algorithm.max_grad_norm
+            )
+            torch.nn.utils.clip_grad_norm_(
+                critic_2.parameters(), cfg.algorithm.max_grad_norm
             )
             critic_optimizer.step()
 
@@ -199,7 +222,7 @@ def run_ddpg(cfg, reward_logger):
             # Now we determine the actions the current policy would take in the states from the RB
             ag_actor(rb_workspace, t=0, n_steps=1)
             # We determine the Q values resulting from actions of the current policy
-            q_agent(rb_workspace, t=0, n_steps=1)
+            q_agent_1(rb_workspace, t=0, n_steps=1)  # TODO : why choose #1?
             # and we back-propagate the corresponding loss to maximize the Q values
             q_values = rb_workspace["q_value"]
             actor_loss = compute_actor_loss(q_values)
@@ -213,7 +236,8 @@ def run_ddpg(cfg, reward_logger):
             actor_optimizer.step()
             # Soft update of target q function
             tau = cfg.algorithm.tau_target
-            soft_update_params(critic, target_critic, tau)
+            soft_update_params(critic_1, target_critic_1, tau)
+            soft_update_params(critic_2, target_critic_2, tau)
             # soft_update_params(actor, target_actor, tau)
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
@@ -227,24 +251,24 @@ def run_ddpg(cfg, reward_logger):
             reward_logger.add(nb_steps, mean)
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
-                directory = "./ddpg_agent/"
+                directory = "./td3_agent/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "ddpg_" + str(mean.item()) + ".agt"
+                filename = directory + "td3_" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(
                         actor,
                         eval_env_agent,
-                        "./ddpg_plots/",
+                        "./td3_plots/",
                         cfg.gym_env.env_name,
                         best_reward,
                         stochastic=False,
                     )
                     plot_critic(
-                        q_agent.agent,
+                        q_agent_1.agent,  # TODO : choix entre les deux ?
                         eval_env_agent,
-                        "./ddpg_plots/",
+                        "./td3_plots/",
                         cfg.gym_env.env_name,
                         best_reward,
                     )
@@ -255,22 +279,22 @@ def main_loop(cfg):
     logdir = "./plot/"
     if not os.path.exists(logdir):
         os.makedirs(logdir)
-    reward_logger = RewardLogger(logdir + "ddpg.steps", logdir + "ddpg.rwd")
+    reward_logger = RewardLogger(logdir + "td3.steps", logdir + "td3.rwd")
     for seed in range(cfg.algorithm.nb_seeds):
         cfg.algorithm.seed = seed
         torch.manual_seed(cfg.algorithm.seed)
-        run_ddpg(cfg, reward_logger)
+        run_td3(cfg, reward_logger)
         if seed < cfg.algorithm.nb_seeds - 1:
             reward_logger.new_episode()
     reward_logger.save()
     chrono.stop()
-    # plotter = Plotter(logdir + "ddpg.steps", logdir + "ddpg.rwd")
-    # plotter.plot_reward("ddpg", cfg.gym_env.env_name)
+    # plotter = Plotter(logdir + "td3.steps", logdir + "td3.rwd")
+    # plotter.plot_reward("td3", cfg.gym_env.env_name)
 
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ddpg_cartpole.yaml",
+    config_name="td3_cartpole.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

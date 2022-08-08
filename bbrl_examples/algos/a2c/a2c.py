@@ -139,11 +139,19 @@ def run_a2c(cfg):
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
             a2c_agent(
-                train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True
+                train_workspace,
+                t=1,
+                n_steps=cfg.algorithm.n_steps - 1,
+                stochastic=True,
+                predict_proba=False,
             )
         else:
             a2c_agent(
-                train_workspace, t=0, n_steps=cfg.algorithm.n_steps, stochastic=True
+                train_workspace,
+                t=0,
+                n_steps=cfg.algorithm.n_steps,
+                stochastic=True,
+                predict_proba=False,
             )
 
         # Compute the critic value over the whole workspace
@@ -193,7 +201,13 @@ def run_a2c(cfg):
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
             eval_workspace = Workspace()  # Used for evaluation
-            eval_agent(eval_workspace, t=0, stop_variable="env/done", stochastic=False)
+            eval_agent(
+                eval_workspace,
+                t=0,
+                stop_variable="env/done",
+                stochastic=False,
+                predict_proba=False,
+            )
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)
