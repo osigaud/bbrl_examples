@@ -1,9 +1,9 @@
-    save_best: True
-    plot_agents: True
+    save_best: False
+    plot_agents: False
 
     logger:
       classname: bbrl.utils.logger.TFLogger
-      log_dir: ./td3_logs/
+      log_dir: ./ddpg_logs/
       verbose: False
       every_n_seconds: 10
 
@@ -29,7 +29,7 @@
 
     gym_env:
       classname: __main__.make_gym_env
-      env_name: CartPoleContinuous-v1
+      env_name: LunarLanderContinuous-v2
 
     actor_optimizer:
       classname: torch.optim.Adam

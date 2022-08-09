@@ -22,7 +22,6 @@ from bbrl_examples.models.actors import ContinuousDeterministicActor
 from bbrl_examples.models.critics import ContinuousQAgent
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger, RewardLogger
-from bbrl_examples.models.plotters import Plotter
 from bbrl_examples.models.exploration_agents import AddGaussianNoise
 
 # HYDRA_FULL_ERROR = 1
@@ -222,7 +221,8 @@ def run_td3(cfg, reward_logger):
             # Now we determine the actions the current policy would take in the states from the RB
             ag_actor(rb_workspace, t=0, n_steps=1)
             # We determine the Q values resulting from actions of the current policy
-            q_agent_1(rb_workspace, t=0, n_steps=1)  # TODO : why choose #1?
+            # We arbitrarily chose to update the actor with respect to critic_1
+            q_agent_1(rb_workspace, t=0, n_steps=1)
             # and we back-propagate the corresponding loss to maximize the Q values
             q_values = rb_workspace["q_value"]
             actor_loss = compute_actor_loss(q_values)
@@ -266,7 +266,7 @@ def run_td3(cfg, reward_logger):
                         stochastic=False,
                     )
                     plot_critic(
-                        q_agent_1.agent,  # TODO : choix entre les deux ?
+                        q_agent_1.agent,  # TODO: do we want to plot both critics?
                         eval_env_agent,
                         "./td3_plots/",
                         cfg.gym_env.env_name,
@@ -294,7 +294,8 @@ def main_loop(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="td3_cartpole.yaml",
+    config_name="ddpg_lunar_lander_continuous.yaml",
+    # config_name="td3_pendulum.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

@@ -17,11 +17,13 @@ import torch
 import torch.nn as nn
 
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
-from bbrl_examples.models.actors import DiscreteActor
+from bbrl_examples.models.actors import SquashedGaussianActor
+from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
+from bbrl_examples.models.actors import ConstantVarianceContinuousActor
+from bbrl_examples.models.actors import DiscreteActor, BernoulliActor
 from bbrl_examples.models.critics import VAgent
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger
-from bbrl_examples.wrappers.wrappers import RocketLanderWrapper
 from bbrl.utils.chrono import Chrono
 
 from bbrl.visu.visu_policies import plot_policy
@@ -29,16 +31,21 @@ from bbrl.visu.visu_critics import plot_critic
 
 # HYDRA_FULL_ERROR = 1
 
+import matplotlib
+
+matplotlib.use("TkAgg")
+
 
 # Create the A2C Agent
 def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
     if train_env_agent.is_continuous_action():
-        action_agent = TunableVarianceContinuousActor(
+        action_agent = SquashedGaussianActor(
             obs_size, cfg.algorithm.architecture.hidden_size, act_size
         )
         # print_agent = PrintAgent(*{"critic", "env/reward", "env/done", "action", "env/env_obs"})
     else:
+        # action_agent = BernoulliActor(obs_size, cfg.algorithm.architecture.hidden_size)
         action_agent = DiscreteActor(
             obs_size, cfg.algorithm.architecture.hidden_size, act_size
         )
@@ -56,8 +63,8 @@ def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
     return train_agent, eval_agent, critic_agent
 
 
-def make_rl_gym_env(env_name):
-    return RocketLanderWrapper(gym.make(env_name))
+def make_gym_env(env_name):
+    return gym.make(env_name)
 
 
 # Configure the optimizer over the a2c agent
@@ -90,7 +97,7 @@ def compute_actor_loss(action_logp, td):
     return a2c_loss.mean()
 
 
-def run_a2c(cfg, max_grad_norm=0.5):
+def run_a2c(cfg):
     # 1)  Build the  logger
     chrono = Chrono()
     logger = Logger(cfg)
@@ -150,7 +157,6 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
         # Compute the critic value over the whole workspace
         critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
-        nb_steps += cfg.algorithm.n_steps * cfg.algorithm.n_envs
 
         transition_workspace = train_workspace.get_transitions()
 
@@ -163,6 +169,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
             "action_logprobs",
         ]
 
+        nb_steps += action[0].shape[0]
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
@@ -180,14 +187,16 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
         # Compute the total loss
         loss = (
-            -cfg.algorithm.entropy_coef * entropy_loss
-            + cfg.algorithm.critic_coef * critic_loss
+            cfg.algorithm.critic_coef * critic_loss
+            - cfg.algorithm.entropy_coef * entropy_loss
             - cfg.algorithm.a2c_coef * a2c_loss
         )
 
         optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(a2c_agent.parameters(), max_grad_norm)
+        torch.nn.utils.clip_grad_norm_(
+            a2c_agent.parameters(), cfg.algorithm.max_grad_norm
+        )
         optimizer.step()
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
@@ -199,20 +208,12 @@ def run_a2c(cfg, max_grad_norm=0.5):
                 stop_variable="env/done",
                 stochastic=False,
                 predict_proba=False,
-                save_render=True,
             )
-            cum_rewards = eval_workspace["env/cumulated_reward"][-1]
-            rewards = eval_workspace["env/reward"][-1]
-            score = 0
-            for i in rewards:
-                if i > 0:
-                    score += 1
-            mean = cum_rewards.mean()
+            rewards = eval_workspace["env/cumulated_reward"][-1]
+            mean = rewards.mean()
             logger.add_log("reward", mean, nb_steps)
-            print(f"epoch: {epoch}, reward: {mean}")
-            if score > 0:
-                print(f"score : {score}")
-            if cfg.save_best and mean > best_reward or score > 0:
+            print(f"nb_steps: {nb_steps}, reward: {mean}")
+            if cfg.save_best and mean > best_reward:
                 best_reward = mean
                 directory = "./a2c_policies/"
                 if not os.path.exists(directory):
@@ -240,8 +241,12 @@ def run_a2c(cfg, max_grad_norm=0.5):
     chrono.stop()
 
 
+# @hydra.main(config_path="./configs/", config_name="sac_pendulum.yaml", version_base="1.1")
+# @hydra.main(config_path="./configs/", config_name="sac_cartpolecontinuous.yaml", version_base="1.1")
 @hydra.main(
-    config_path="./configs/", config_name="sac_rocket_lander.yaml", version_base="1.1"
+    config_path="./configs/",
+    config_name="sac_cartpolecontinuous.yaml",
+    version_base="1.1",
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))

@@ -17,6 +17,7 @@ import torch
 import torch.nn as nn
 
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
+from bbrl_examples.models.actors import SquashedGaussianActor
 from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
 from bbrl_examples.models.actors import ConstantVarianceContinuousActor
 from bbrl_examples.models.actors import DiscreteActor, BernoulliActor
@@ -240,10 +241,12 @@ def run_a2c(cfg):
     chrono.stop()
 
 
-# @hydra.main(config_path="./configs/", config_name="a2c_pendulum.yaml", version_base="1.1")
-# @hydra.main(config_path="./configs/", config_name="a2c_cartpolecontinuous.yaml", version_base="1.1")
+# @hydra.main(config_path="./configs/", config_name="sac_pendulum.yaml", version_base="1.1")
+# @hydra.main(config_path="./configs/", config_name="sac_cartpolecontinuous.yaml", version_base="1.1")
 @hydra.main(
-    config_path="./configs/", config_name="a2c_cartpole.yaml", version_base="1.1"
+    config_path="./configs/",
+    config_name="sac_cartpolecontinuous.yaml",
+    version_base="1.1",
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))

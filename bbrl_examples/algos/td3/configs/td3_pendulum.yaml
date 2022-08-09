@@ -3,7 +3,7 @@
 
     logger:
       classname: bbrl.utils.logger.TFLogger
-      log_dir: ./ddpg_logs/
+      log_dir: ./td3_logs/
       verbose: False
       every_n_seconds: 10
 

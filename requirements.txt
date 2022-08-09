@@ -13,4 +13,5 @@ tensorboard
 tqdm
 hydra-core
 seaborn
+mujoco-py<2.2,>=2.1
 

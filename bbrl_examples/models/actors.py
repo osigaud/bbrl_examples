@@ -4,6 +4,7 @@ from torch.distributions.normal import Normal
 from torch.distributions import Bernoulli
 
 from bbrl_examples.models.shared_models import build_mlp, build_backbone
+from bbrl_examples.models.distributions import SquashedDiagGaussianDistribution
 from bbrl.agents.agent import Agent
 
 
@@ -228,6 +229,41 @@ class ConstantVarianceContinuousActor(Agent):
         dist = Normal(mean, self.std_param)
         if stochastic:
             action = dist.sample()
+        else:
+            action = mean
+        return action
+
+
+class SquashedGaussianActor(Agent):
+    def __init__(self, state_dim, hidden_layers, action_dim):
+        super().__init__()
+        backbone_dim = [state_dim] + list(hidden_layers)
+        self.layers = build_backbone(backbone_dim, activation=nn.ReLU())
+        self.backbone = nn.Sequential(*self.layers)
+        self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
+        self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
+        self.action_dist = SquashedDiagGaussianDistribution(action_dim)
+
+    def forward(self, t, stochastic, **kwargs):
+        obs = self.get(("env/env_obs", t))
+        backbone_output = self.backbone(obs)
+        mean = self.last_mean_layer(backbone_output)
+        print("dist", self.action_dist)
+        print("entropy", self.action_dist.entropy())
+        self.set(("entropy", t), self.action_dist.entropy())
+        if stochastic:
+            action = self.action_dist.sample()
+        else:
+            action = mean
+        log_prob = self.action_dist.log_prob(action)
+        self.set(("action", t), action)
+        self.set(("action_logprobs", t), log_prob)
+
+    def predict_action(self, obs, stochastic):
+        backbone_output = self.backbone(obs)
+        mean = self.last_mean_layer(backbone_output)
+        if stochastic:
+            action = self.action_dist.sample()
         else:
             action = mean
         return action

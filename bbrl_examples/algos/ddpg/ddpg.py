@@ -270,7 +270,8 @@ def main_loop(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ddpg_cartpole.yaml",
+    # config_name="ddpg_pendulum.yaml",
+    config_name="ddpg_lunar_lander_continuous.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):
