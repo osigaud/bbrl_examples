@@ -13,20 +13,29 @@
       n_envs: 8
       n_steps: 100
       eval_interval: 1000
+      buffer_size: 2e5
+      batch_size: 64
+      learning_starts: 10000
       nb_evals: 10
       gae: 0.8
       max_epochs: 50000
+      max_grad_norm: 0.5
       discount_factor: 0.95
       entropy_coef: 2.55e-7
       critic_coef: 0.4
       a2c_coef: 1
       architecture:
-        hidden_size: [64, 64]
+        actor_hidden_size: [256, 256]
+        critic_hidden_size: [256, 256]
 
     gym_env:
       classname: __main__.make_gym_env
       env_name: Pendulum-v1
 
-    optimizer:
-      classname: torch.optim.RMSprop
-      lr: 0.004
+    actor_optimizer:
+      classname: torch.optim.Adam
+      lr: 1e-4
+
+    critic_optimizer:
+      classname: torch.optim.Adam
+      lr: 1e-3

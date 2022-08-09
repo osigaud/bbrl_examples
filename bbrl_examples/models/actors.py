@@ -182,6 +182,7 @@ class StateDependentVarianceContinuousActor(Agent):
         assert not torch.any(torch.isnan(mean)), "Nan Here"
         dist = Normal(mean, std)
         self.set(("entropy", t), dist.entropy())
+        # print("entropy", dist.entropy())
         if stochastic:
             action = dist.sample()
         else:
@@ -243,14 +244,17 @@ class SquashedGaussianActor(Agent):
         self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.action_dist = SquashedDiagGaussianDistribution(action_dim)
+        # std must be positive
+        self.std_layer = nn.Softplus()
 
     def forward(self, t, stochastic, **kwargs):
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
-        print("dist", self.action_dist)
-        print("entropy", self.action_dist.entropy())
-        self.set(("entropy", t), self.action_dist.entropy())
+        std_out = self.last_std_layer(backbone_output)
+        std = self.std_layer(std_out)
+        self.action_dist.make_distribution(mean, std)
+        # print("dist", self.action_dist.get_ten_samples())
         if stochastic:
             action = self.action_dist.sample()
         else:
@@ -258,6 +262,8 @@ class SquashedGaussianActor(Agent):
         log_prob = self.action_dist.log_prob(action)
         self.set(("action", t), action)
         self.set(("action_logprobs", t), log_prob)
+        # print("entropy", -log_prob)
+        self.set(("entropy", t), -log_prob)
 
     def predict_action(self, obs, stochastic):
         backbone_output = self.backbone(obs)

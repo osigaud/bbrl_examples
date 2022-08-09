@@ -167,7 +167,7 @@ class DiagGaussianDistribution(Distribution):
         )
         return mean_actions, log_std
 
-    def proba_distribution(
+    def make_distribution(
         self, mean_actions: th.Tensor, log_std: th.Tensor
     ) -> "DiagGaussianDistribution":
         """
@@ -265,6 +265,7 @@ class SquashedDiagGaussianDistribution(DiagGaussianDistribution):
     def entropy(self) -> Optional[th.Tensor]:
         # No analytical form,
         # entropy needs to be estimated using -log_prob.mean()
+        raise Exception("Call to entropy in squashed Diag Gaussian distribution")
         return None
 
     def sample(self) -> th.Tensor:
@@ -283,6 +284,13 @@ class SquashedDiagGaussianDistribution(DiagGaussianDistribution):
         action = self.actions_from_params(mean_actions, log_std)
         log_prob = self.log_prob(action, self.gaussian_actions)
         return action, log_prob
+
+    def get_ten_samples(self) -> List:
+        action_list = []
+        for i in range(10):
+            action = self.sample()
+            action_list.append(action)
+        return action_list
 
 
 class CategoricalDistribution(Distribution):

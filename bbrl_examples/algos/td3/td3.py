@@ -20,6 +20,7 @@ from bbrl.visu.visu_critics import plot_critic
 
 from bbrl_examples.models.actors import ContinuousDeterministicActor
 from bbrl_examples.models.critics import ContinuousQAgent
+from bbrl_examples.models.shared_models import soft_update_params
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger, RewardLogger
 from bbrl_examples.models.exploration_agents import AddGaussianNoise
@@ -29,11 +30,6 @@ from bbrl_examples.models.exploration_agents import AddGaussianNoise
 import matplotlib
 
 matplotlib.use("TkAgg")
-
-
-def soft_update_params(net, target_net, tau):
-    for param, target_param in zip(net.parameters(), target_net.parameters()):
-        target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
 
 # Create the TD3 Agent
