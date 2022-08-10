@@ -241,8 +241,6 @@ def run_a2c(cfg):
     chrono.stop()
 
 
-# @hydra.main(config_path="./configs/", config_name="sac_pendulum.yaml", version_base="1.1")
-# @hydra.main(config_path="./configs/", config_name="sac_cartpolecontinuous.yaml", version_base="1.1")
 @hydra.main(
     config_path="./configs/",
     config_name="sac_cartpolecontinuous.yaml",

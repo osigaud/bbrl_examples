@@ -1,39 +1,49 @@
-    save_best: True
-    plot_agents: True
+      save_best: True
+      plot_agents: True
 
-    logger:
-      classname: bbrl.utils.logger.TFLogger
-      log_dir: ./sac_logs/
-      verbose: False
-      every_n_seconds: 10
+      logger:
+            classname: bbrl.utils.logger.TFLogger
+            log_dir: ./sac_logs/
+            verbose: False
+            every_n_seconds: 10
 
-    algorithm:
-      seed: 4
-      n_envs: 8
-      n_steps: 20
-      eval_interval: 2000
-      buffer_size: 2e5
-      batch_size: 64
-      learning_starts: 10000
-      nb_evals: 10
-      gae: 0.8
-      max_epochs: 50000
-      max_grad_norm: 0.5
-      discount_factor: 0.95
-      entropy_coef: 2.5e-3
-      critic_coef: 0.6
-      a2c_coef: 1
-      architecture:
-        actor_hidden_size: [256, 256]
-        critic_hidden_size: [256, 256]
-    gym_env:
-      classname: __main__.make_rl_gym_env
-      env_name: RocketLander-v0
+      algorithm:
+            seed: 4
+            n_envs: 8
+            n_steps: 20
+            eval_interval: 2000
+            buffer_size: 2e5
+            batch_size: 64
+            learning_starts: 10000
+            nb_evals: 10
+            tau_target: 0.05
+            max_epochs: 50000
+            max_grad_norm: 0.5
+            discount_factor: 0.95
+            entropy_coef: 2.5e-5
+            critic_coef: 0.6
+            actor_coef: 1
+            target_entropy: auto
+            architecture:
+                  actor_hidden_size: [256, 256]
+                  critic_hidden_size: [256, 256]
 
-    actor_optimizer:
-      classname: torch.optim.Adam
-      lr: 1e-4
+      gym_env:
+            classname: __main__.make_rl_gym_env
+            env_name: RocketLander-v0
 
-    critic_optimizer:
-      classname: torch.optim.Adam
-      lr: 1e-3
+      actor_optimizer:
+            classname: torch.optim.Adam
+            lr: 1e-4
+
+      critic_optimizer:
+            classname: torch.optim.Adam
+            lr: 1e-3
+
+      entropy_optimizer:
+            classname: torch.optim.Adam
+            lr: 1e-3
+
+      entropy_coef_optimizer:
+            classname: torch.optim.Adam
+            lr: 1e-3

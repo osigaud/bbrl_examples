@@ -262,8 +262,6 @@ class SquashedGaussianActor(Agent):
         log_prob = self.action_dist.log_prob(action)
         self.set(("action", t), action)
         self.set(("action_logprobs", t), log_prob)
-        # print("entropy", -log_prob)
-        self.set(("entropy", t), -log_prob)
 
     def predict_action(self, obs, stochastic):
         backbone_output = self.backbone(obs)
