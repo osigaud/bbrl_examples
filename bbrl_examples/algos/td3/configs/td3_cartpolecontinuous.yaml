@@ -3,7 +3,7 @@
 
       logger:
             classname: bbrl.utils.logger.TFLogger
-            log_dir: ./sac_logs/
+            log_dir: ./td3_logs/
             verbose: False
             every_n_seconds: 10
 
@@ -14,16 +14,14 @@
             n_steps: 100
             max_grad_norm: 0.5
             buffer_size: 2e5
-            batch_size: 256
+            batch_size: 64
             eval_interval: 2000
             nb_evals: 10
             learning_starts: 10000
             tau_target: 0.05
             action_noise: 0.1
-            max_epochs: 25000
+            max_epochs: 5000
             discount_factor: 0.98
-            entropy_coef: 0.1
-            target_entropy: no
             architecture:
                   actor_hidden_size: [256, 256]
                   critic_hidden_size: [256, 256]
@@ -37,13 +35,5 @@
             lr: 1e-4
 
       critic_optimizer:
-            classname: torch.optim.Adam
-            lr: 1e-3
-
-      entropy_optimizer:
-            classname: torch.optim.Adam
-            lr: 1e-3
-
-      entropy_coef_optimizer:
             classname: torch.optim.Adam
             lr: 1e-3

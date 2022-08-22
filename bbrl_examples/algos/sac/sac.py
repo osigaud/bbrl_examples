@@ -1,31 +1,30 @@
 import sys
 import os
 import copy
+import torch
+import torch.nn as nn
 import gym
 import my_gym
+import hydra
 import numpy as np
 
 from omegaconf import DictConfig
+from bbrl.utils.chrono import Chrono
+
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
 from bbrl.agents import Agents, TemporalAgent, PrintAgent
 
-import hydra
-
-import torch
-import torch.nn as nn
+from bbrl_examples.models.loggers import Logger
+from bbrl.utils.replay_buffer import ReplayBuffer
 
 from bbrl_examples.models.actors import (
     SquashedGaussianActor,
     TunableVarianceContinuousActor,
 )
-from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.critics import ContinuousQAgent
 from bbrl_examples.models.shared_models import soft_update_params
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
-from bbrl_examples.models.loggers import Logger
-from bbrl.utils.chrono import Chrono
-from bbrl.utils.replay_buffer import ReplayBuffer
 
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
@@ -46,8 +45,7 @@ def create_sac_agent(cfg, train_env_agent, eval_env_agent):
     actor = TunableVarianceContinuousActor(
         obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
     )
-    # print_agent = PrintAgent()
-    tr_agent = Agents(train_env_agent, actor)  # , print_agent)
+    tr_agent = Agents(train_env_agent, actor)
     ev_agent = Agents(eval_env_agent, actor)
     critic_1 = ContinuousQAgent(
         obs_size, cfg.algorithm.architecture.critic_hidden_size, act_size
@@ -80,7 +78,6 @@ def setup_optimizers(cfg, actor, critic_1, critic_2):
     actor_optimizer_args = get_arguments(cfg.actor_optimizer)
     parameters = actor.parameters()
     actor_optimizer = get_class(cfg.actor_optimizer)(parameters, **actor_optimizer_args)
-
     critic_optimizer_args = get_arguments(cfg.critic_optimizer)
     parameters = nn.Sequential(critic_1, critic_2).parameters()
     critic_optimizer = get_class(cfg.critic_optimizer)(
@@ -110,11 +107,11 @@ def setup_entropy_optimizers(cfg):
 def compute_critic_loss(
     cfg,
     reward,
-    action_logprobs,
     must_bootstrap,
     q_values_1,
     q_values_2,
     q_next,
+    action_logprobs,
     ent_coef,
 ):
     # Compute temporal difference
@@ -131,8 +128,8 @@ def compute_critic_loss(
     return critic_loss_1, critic_loss_2
 
 
-def compute_actor_loss(ent_coef, action_logp, current_q_values):
-    actor_loss = ent_coef * action_logp - current_q_values
+def compute_actor_loss(ent_coef, action_logp, q_values):
+    actor_loss = ent_coef * action_logp - q_values
     return actor_loss.mean()
 
 
@@ -152,7 +149,7 @@ def run_sac(cfg):
     eval_env_agent = NoAutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
+        cfg.algorithm.nb_evals,
         cfg.algorithm.seed,
     )
 
@@ -166,8 +163,6 @@ def run_sac(cfg):
         critic_2,
         target_critic_2,
     ) = create_sac_agent(cfg, train_env_agent, eval_env_agent)
-    # printAgent = PrintAgent()
-    # act = Agents(actor, printAgent)
     ag_actor = TemporalAgent(actor)
     q_agent_1 = TemporalAgent(critic_1)
     target_q_agent_1 = TemporalAgent(target_critic_1)
@@ -230,30 +225,35 @@ def run_sac(cfg):
             # Compute q_values from both critics with the actions present in the buffer:
             # at t, we have Q(s,a) from the (s,a) in the RB
             q_agent_1(rb_workspace, t=0, n_steps=1)
-            q_values_1 = rb_workspace["q_value"]
+            q_values_rb_1 = rb_workspace["q_value"]
             q_agent_2(rb_workspace, t=0, n_steps=1)
-            q_values_2 = rb_workspace["q_value"]
+            q_values_rb_2 = rb_workspace["q_value"]
 
-            # Replay the current actor on the replay buffer to get actions of the current policy
-            ag_actor(rb_workspace, t=0, n_steps=2, stochastic=True, predict_proba=False)
-            action_logprobs = rb_workspace["action_logprobs"]
+            with torch.no_grad():
+                # Replay the current actor on the replay buffer to get actions of the current policy
+                # change this
+                ag_actor(
+                    rb_workspace, t=1, n_steps=1, stochastic=True, predict_proba=False
+                )
+                action_logprobs = rb_workspace["action_logprobs"]
 
-            # Compute target q_values from both target critics: at t+1, we have Q(s+1,a+1) from the (s+1,a+1)
-            # where a+1 has been replaced in the RB
-            target_q_agent_1(rb_workspace, t=1, n_steps=1)
-            post_q_values_1 = rb_workspace["q_value"]
-            target_q_agent_2(rb_workspace, t=1, n_steps=1)
-            post_q_values_2 = rb_workspace["q_value"]
+                # Compute target q_values from both target critics: at t+1, we have Q(s+1,a+1) from the (s+1,a+1)
+                # where a+1 has been replaced in the RB
+
+                target_q_agent_1(rb_workspace, t=1, n_steps=1)
+                post_q_values_1 = rb_workspace["q_value"]
+                target_q_agent_2(rb_workspace, t=1, n_steps=1)
+                post_q_values_2 = rb_workspace["q_value"]
 
             post_q_values = torch.min(post_q_values_1, post_q_values_2).squeeze(-1)
             critic_loss_1, critic_loss_2 = compute_critic_loss(
                 cfg,
                 reward,
-                action_logprobs[1].detach(),
                 must_bootstrap,
-                q_values_1[0],
-                q_values_2[0],
-                post_q_values[0].detach(),
+                q_values_rb_1[0],
+                q_values_rb_2[0],
+                post_q_values[1],
+                action_logprobs.detach(),
                 ent_coef,
             )
             logger.add_log("critic_loss_1", critic_loss_1, nb_steps)
@@ -262,6 +262,8 @@ def run_sac(cfg):
 
             # Actor loss computation (done before any update) #####################################
             # Recompute the q_values from the current policy, not from the actions in the buffer
+            ag_actor(rb_workspace, t=0, n_steps=1, stochastic=True, predict_proba=False)
+            action_logprobs = rb_workspace["action_logprobs"]
             q_agent_1(rb_workspace, t=0, n_steps=1)
             q_values_1 = rb_workspace["q_value"]
             q_agent_2(rb_workspace, t=0, n_steps=1)
@@ -269,7 +271,7 @@ def run_sac(cfg):
             current_q_values = torch.min(q_values_1, q_values_2).squeeze(-1)
 
             actor_loss = compute_actor_loss(
-                ent_coef, action_logprobs[0], current_q_values[0].detach()
+                ent_coef, action_logprobs[0], current_q_values[0]
             )
             logger.add_log("actor_loss", actor_loss, nb_steps)
 
@@ -281,25 +283,12 @@ def run_sac(cfg):
                 ent_coef = torch.exp(log_entropy_coef.detach())
                 # See Eq. (17) of the SAC and Applications paper
                 entropy_coef_loss = -(
-                    log_entropy_coef * (action_logprobs + target_entropy).detach()
+                    log_entropy_coef * (action_logprobs + target_entropy)
                 ).mean()
                 entropy_coef_optimizer.zero_grad()
-                entropy_coef_loss.backward()
+                entropy_coef_loss.backward(retain_graph=True)
                 entropy_coef_optimizer.step()
                 logger.add_log("entropy_coef_loss", entropy_coef_loss, nb_steps)
-
-            # Critic update part ############################################################
-            critic_optimizer.zero_grad()
-            # We need to retain the graph because we reuse the action_logprobs are used
-            # to compute both the actor loss and the critic loss
-            critic_loss.backward(retain_graph=True)
-            torch.nn.utils.clip_grad_norm_(
-                critic_1.parameters(), cfg.algorithm.max_grad_norm
-            )
-            torch.nn.utils.clip_grad_norm_(
-                critic_2.parameters(), cfg.algorithm.max_grad_norm
-            )
-            critic_optimizer.step()
 
             # Actor update part ###################################################################
             actor_optimizer.zero_grad()
@@ -309,6 +298,18 @@ def run_sac(cfg):
             )
 
             actor_optimizer.step()
+            # Critic update part ############################################################
+            critic_optimizer.zero_grad()
+            # We need to retain the graph because we reuse the action_logprobs are used
+            # to compute both the actor loss and the critic loss
+            critic_loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                critic_1.parameters(), cfg.algorithm.max_grad_norm
+            )
+            torch.nn.utils.clip_grad_norm_(
+                critic_2.parameters(), cfg.algorithm.max_grad_norm
+            )
+            critic_optimizer.step()
             #########################################################################################
 
             # Soft update of target q function
@@ -346,7 +347,7 @@ def run_sac(cfg):
                         "./sac_plots/",
                         cfg.gym_env.env_name,
                         best_reward,
-                        stochastic=False,
+                        # stochastic=False,
                     )
                     plot_critic(
                         q_agent_1.agent,  # TODO: do we want to plot both critics?
@@ -359,8 +360,8 @@ def run_sac(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    # config_name="sac_cartpolecontinuous.yaml",
-    config_name="sac_pendulum.yaml",
+    config_name="sac_cartpolecontinuous.yaml",
+    # config_name="sac_pendulum.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):
