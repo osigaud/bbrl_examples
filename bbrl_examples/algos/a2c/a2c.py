@@ -75,11 +75,11 @@ def setup_optimizers(cfg, action_agent, critic_agent):
     return optimizer
 
 
-def compute_critic_loss(cfg, reward, must_bootstrap, v_value):
+def compute_advantages_loss(cfg, reward, must_bootstrap, v_value):
     # Compute temporal difference
     # target = reward[:-1] + cfg.algorithm.discount_factor * v_value[1:].detach() * must_bootstrap.int()
     # td = target - v_value[:-1]
-    td = gae(
+    advantages = gae(
         v_value,
         reward,
         must_bootstrap,
@@ -87,9 +87,9 @@ def compute_critic_loss(cfg, reward, must_bootstrap, v_value):
         cfg.algorithm.gae,
     )
     # Compute critic loss
-    td_error = td**2
+    td_error = advantages**2
     critic_loss = td_error.mean()
-    return critic_loss, td
+    return critic_loss, advantages
 
 
 def compute_actor_loss(action_logp, td):
@@ -176,8 +176,10 @@ def run_a2c(cfg):
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         # Compute critic loss
-        critic_loss, td = compute_critic_loss(cfg, reward, must_bootstrap, v_value)
-        a2c_loss = compute_actor_loss(action_logp, td)
+        critic_loss, advantages = compute_advantages_loss(
+            cfg, reward, must_bootstrap, v_value
+        )
+        a2c_loss = compute_actor_loss(action_logp, advantages)
 
         # Compute entropy loss
         entropy_loss = torch.mean(train_workspace["entropy"])

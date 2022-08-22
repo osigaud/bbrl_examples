@@ -21,8 +21,6 @@
             max_grad_norm: 0.5
             discount_factor: 0.95
             entropy_coef: 2.5e-5
-            critic_coef: 0.6
-            actor_coef: 1
             target_entropy: auto
             architecture:
                   actor_hidden_size: [256, 256]

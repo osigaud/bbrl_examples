@@ -1,7 +1,6 @@
       save_best: True
       plot_agents: True
 
-
       logger:
             classname: bbrl.utils.logger.TFLogger
             log_dir: ./sac_logs/
@@ -21,10 +20,8 @@
             max_epochs: 8000
             max_grad_norm: 0.5
             discount_factor: 0.99
-            entropy_coef: 0.01
-            critic_coef: 0.5
-            actor_coef: 1
-            target_entropy: auto
+            entropy_coef: 1e-4
+            target_entropy: no
             architecture:
                   actor_hidden_size: [256, 256]
                   critic_hidden_size: [256, 256]
@@ -35,7 +32,7 @@
 
       actor_optimizer:
             classname: torch.optim.Adam
-            lr: 1e-4
+            lr: 1e-3
 
       critic_optimizer:
             classname: torch.optim.Adam

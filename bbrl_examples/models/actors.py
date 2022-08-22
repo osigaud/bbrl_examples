@@ -247,30 +247,46 @@ class SquashedGaussianActor(Agent):
         # std must be positive
         self.std_layer = nn.Softplus()
 
-    def forward(self, t, stochastic, **kwargs):
+    def forward(self, t, stochastic, predict_proba):
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
         std_out = self.last_std_layer(backbone_output)
         std = self.std_layer(std_out)
-        self.action_dist.make_distribution(mean, std)
-        # print("dist", self.action_dist.get_ten_samples())
-        if stochastic:
-            action = self.action_dist.sample()
+        action_dist = self.action_dist.make_distribution(mean, std)
+        if predict_proba:
+            action = self.get(("action", t))
+            log_prob = action_dist.log_prob(action)
+            self.set(("logprob_predict", t), log_prob)
         else:
-            action = mean
-        log_prob = self.action_dist.log_prob(action)
-        self.set(("action", t), action)
-        self.set(("action_logprobs", t), log_prob)
+            if stochastic:
+                action = action_dist.sample()
+            else:
+                action = mean
+            log_prob = action_dist.log_prob(action)
+            self.set(("action", t), action)
+            self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic):
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
+        std_out = self.last_std_layer(backbone_output)
+        std = self.std_layer(std_out)
+        action_dist = self.action_dist.make_distribution(mean, std)
         if stochastic:
-            action = self.action_dist.sample()
+            action = action_dist.sample()
         else:
             action = mean
         return action
+
+    def test(self, obs, action):
+        backbone_output = self.backbone(obs)
+        mean = self.last_mean_layer(backbone_output)
+        std_out = self.last_std_layer(backbone_output)
+        std = self.std_layer(std_out)
+        action_dist = self.action_dist.make_distribution(mean, std)
+        log_prob = action_dist.log_prob(action)
+        return log_prob
 
 
 class ContinuousDeterministicActor(Agent):

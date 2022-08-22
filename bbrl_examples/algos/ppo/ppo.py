@@ -70,7 +70,7 @@ def setup_optimizer(cfg, action_agent, critic_agent):
     return optimizer
 
 
-def compute_critic_loss(cfg, reward, must_bootstrap, v_value):
+def compute_advantage_loss(cfg, reward, must_bootstrap, v_value):
     # Compute temporal difference with GAE
     advantages = gae(
         v_value,
@@ -202,7 +202,7 @@ def run_ppo(cfg):
                 cfg.algorithm.clip_range_vf,
             )
 
-        critic_loss, advantages = compute_critic_loss(
+        critic_loss, advantages = compute_advantage_loss(
             cfg, reward, must_bootstrap, v_value
         )
 

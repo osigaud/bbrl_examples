@@ -21,8 +21,6 @@
             max_epochs: 3000
             discount_factor: 0.95
             entropy_coef: 2.55e-5
-            critic_coef: 0.6
-            actor_coef: 1
             target_entropy: auto
             architecture:
                   actor_hidden_size: [256, 256]
@@ -34,7 +32,7 @@
 
       actor_optimizer:
             classname: torch.optim.Adam
-            lr: 1e-4
+            lr: 1e-3
 
       critic_optimizer:
             classname: torch.optim.Adam
