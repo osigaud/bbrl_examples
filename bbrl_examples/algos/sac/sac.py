@@ -210,10 +210,8 @@ def run_sac(cfg):
         rb.put(transition_workspace)
         rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
 
-        done, truncated, reward = rb_workspace[
-            "env/done",
-            "env/truncated",
-            "env/reward",
+        done, truncated, reward, action_logprobs_rb = rb_workspace[
+            "env/done", "env/truncated", "env/reward", "action_logprobs"
         ]
 
         if nb_steps > cfg.algorithm.learning_starts:
@@ -235,8 +233,7 @@ def run_sac(cfg):
                 ag_actor(
                     rb_workspace, t=1, n_steps=1, stochastic=True, predict_proba=False
                 )
-                action_logprobs = rb_workspace["action_logprobs"]
-
+                action_logprobs_next = rb_workspace["action_logprobs"]
                 # Compute target q_values from both target critics: at t+1, we have Q(s+1,a+1) from the (s+1,a+1)
                 # where a+1 has been replaced in the RB
 
@@ -253,7 +250,7 @@ def run_sac(cfg):
                 q_values_rb_1[0],
                 q_values_rb_2[0],
                 post_q_values[1],
-                action_logprobs.detach(),
+                action_logprobs_next,
                 ent_coef,
             )
             logger.add_log("critic_loss_1", critic_loss_1, nb_steps)
@@ -263,7 +260,7 @@ def run_sac(cfg):
             # Actor loss computation (done before any update) #####################################
             # Recompute the q_values from the current policy, not from the actions in the buffer
             ag_actor(rb_workspace, t=0, n_steps=1, stochastic=True, predict_proba=False)
-            action_logprobs = rb_workspace["action_logprobs"]
+            action_logprobs_new = rb_workspace["action_logprobs"]
             q_agent_1(rb_workspace, t=0, n_steps=1)
             q_values_1 = rb_workspace["q_value"]
             q_agent_2(rb_workspace, t=0, n_steps=1)
@@ -271,7 +268,7 @@ def run_sac(cfg):
             current_q_values = torch.min(q_values_1, q_values_2).squeeze(-1)
 
             actor_loss = compute_actor_loss(
-                ent_coef, action_logprobs[0], current_q_values[0]
+                ent_coef, action_logprobs_new[0], current_q_values[0]
             )
             logger.add_log("actor_loss", actor_loss, nb_steps)
 
@@ -283,7 +280,7 @@ def run_sac(cfg):
                 ent_coef = torch.exp(log_entropy_coef.detach())
                 # See Eq. (17) of the SAC and Applications paper
                 entropy_coef_loss = -(
-                    log_entropy_coef * (action_logprobs + target_entropy)
+                    log_entropy_coef * (action_logprobs_rb + target_entropy)
                 ).mean()
                 entropy_coef_optimizer.zero_grad()
                 entropy_coef_loss.backward(retain_graph=True)

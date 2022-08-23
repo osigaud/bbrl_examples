@@ -10,8 +10,8 @@
       algorithm:
             seed: 1
             nb_seeds: 1
-            n_envs: 1
-            n_steps: 100
+            n_envs: 8
+            n_steps: 32
             max_grad_norm: 0.5
             buffer_size: 2e5
             batch_size: 256
@@ -34,7 +34,7 @@
 
       actor_optimizer:
             classname: torch.optim.Adam
-            lr: 1e-4
+            lr: 1e-3
 
       critic_optimizer:
             classname: torch.optim.Adam
