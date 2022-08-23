@@ -13,6 +13,7 @@
       n_steps: 20
       eval_interval: 2000
       nb_evals: 10
+      max_grad_norm: 0.5
       gae: 0.8
       max_epochs: 50000
       discount_factor: 0.95

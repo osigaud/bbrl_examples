@@ -1,7 +1,6 @@
     save_best: True
     plot_agents: True
 
-
     logger:
       classname: bbrl.utils.logger.TFLogger
       log_dir: ./a2c_logs/
@@ -9,25 +8,25 @@
       every_n_seconds: 10
 
     algorithm:
-      seed: 5
+      seed: 4
       n_envs: 8
-      n_steps: 100
-      eval_interval: 1000
+      n_steps: 20
+      eval_interval: 2000
       nb_evals: 10
       max_grad_norm: 0.5
       gae: 0.8
-      max_epochs: 50000
+      max_epochs: 3000
       discount_factor: 0.95
-      entropy_coef: 2.55e-7
-      critic_coef: 0.4
+      entropy_coef: 2.55e-5
+      critic_coef: 0.6
       a2c_coef: 1
       architecture:
-        hidden_size: [64, 64]
+        hidden_size: [24, 36]
 
     gym_env:
       classname: __main__.make_gym_env
-      env_name: Pendulum-v1
+      env_name: Swimmer-v2
 
     optimizer:
-      classname: torch.optim.RMSprop
-      lr: 0.004
+      classname: torch.optim.Adam
+      lr: 0.001

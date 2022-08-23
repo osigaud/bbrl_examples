@@ -3,6 +3,7 @@ import os
 
 import gym
 import my_gym
+import mujoco_py
 
 from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
@@ -168,7 +169,7 @@ def run_a2c(cfg):
             "action",
             "action_logprobs",
         ]
-        print("action", action)
+
         nb_steps += action[0].shape[0]
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
@@ -245,7 +246,7 @@ def run_a2c(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="a2c_cartpolecontinuous.yaml",
+    config_name="a2c_swimmer.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):
