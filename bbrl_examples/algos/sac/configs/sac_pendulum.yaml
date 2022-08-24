@@ -11,20 +11,20 @@
       algorithm:
             seed: 1
             n_envs: 8
-            n_steps: 100
+            n_steps: 32
             eval_interval: 5000
             nb_evals: 10
-            buffer_size: 2e5
+            buffer_size: 1e6
             batch_size: 256
             learning_starts: 10000
             tau_target: 0.05
             max_epochs: 50000
             max_grad_norm: 0.5
             discount_factor: 0.95
-            entropy_coef: 0.1
-            target_entropy: no
+            entropy_coef: 1e-7
+            target_entropy: auto
             architecture:
-                  actor_hidden_size: [256, 256]
+                  actor_hidden_size: [32, 32]
                   critic_hidden_size: [256, 256]
 
       gym_env:

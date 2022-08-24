@@ -4,7 +4,7 @@ from torch.distributions.normal import Normal
 from torch.distributions import Bernoulli
 
 from bbrl_examples.models.shared_models import build_mlp, build_backbone
-from bbrl_examples.models.distributions import SquashedDiagGaussianDistribution
+from bbrl.utils.distributions import SquashedDiagGaussianDistribution
 from bbrl.agents.agent import Agent
 
 

@@ -1,9 +1,9 @@
-      save_best: True
-      plot_agents: True
+      save_best: False
+      plot_agents: False
 
       logger:
             classname: bbrl.utils.logger.TFLogger
-            log_dir: ./sac_logs/
+            log_dir: ./td3_logs/
             verbose: False
             every_n_seconds: 10
 
@@ -12,24 +12,23 @@
             nb_seeds: 1
             n_envs: 8
             n_steps: 32
-            max_grad_norm: 0.5
-            buffer_size: 1e6
+            max_grad_norm: 1.5
+            buffer_size: 2e5
             batch_size: 256
             eval_interval: 2000
             nb_evals: 10
             learning_starts: 10000
             tau_target: 0.05
-            max_epochs: 25000
-            discount_factor: 0.98
-            entropy_coef: 1e-7
-            target_entropy: auto
+            action_noise: 0.05
+            max_epochs: 5000
+            discount_factor: 0.99999
             architecture:
-                  actor_hidden_size: [32, 32]
-                  critic_hidden_size: [256, 256]
+                  actor_hidden_size: [32]
+                  critic_hidden_size: [32]
 
       gym_env:
             classname: __main__.make_gym_env
-            env_name: CartPoleContinuous-v1
+            env_name: Swimmer-v2
 
       actor_optimizer:
             classname: torch.optim.Adam
@@ -37,12 +36,4 @@
 
       critic_optimizer:
             classname: torch.optim.Adam
-            lr: 1e-3
-
-      entropy_optimizer:
-            classname: torch.optim.Adam
-            lr: 1e-3
-
-      entropy_coef_optimizer:
-            classname: torch.optim.Adam
-            lr: 1e-3
+            lr: 1e-2

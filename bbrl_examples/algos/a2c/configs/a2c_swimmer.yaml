@@ -1,5 +1,5 @@
-    save_best: True
-    plot_agents: True
+    save_best: False
+    plot_agents: False
 
     logger:
       classname: bbrl.utils.logger.TFLogger
@@ -16,7 +16,7 @@
       max_grad_norm: 0.5
       gae: 0.8
       max_epochs: 3000
-      discount_factor: 0.95
+      discount_factor: 0.9999
       entropy_coef: 2.55e-5
       critic_coef: 0.6
       a2c_coef: 1

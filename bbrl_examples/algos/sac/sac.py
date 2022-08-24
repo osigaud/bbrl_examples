@@ -42,7 +42,7 @@ def create_sac_agent(cfg, train_env_agent, eval_env_agent):
     assert (
         train_env_agent.is_continuous_action()
     ), "SAC code dedicated to continuous actions"
-    actor = TunableVarianceContinuousActor(
+    actor = SquashedGaussianActor(
         obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
     )
     tr_agent = Agents(train_env_agent, actor)
@@ -104,6 +104,33 @@ def setup_entropy_optimizers(cfg):
     return entropy_coef_optimizer, log_entropy_coef
 
 
+def prepare_critic_loss_data(
+    ag_actor, q_agent_1, q_agent_2, target_q_agent_1, target_q_agent_2, rb_workspace
+):
+    # Compute q_values from both critics with the actions present in the buffer:
+    # at t, we have Q(s,a) from the (s,a) in the RB
+    q_agent_1(rb_workspace, t=0, n_steps=1)
+    q_values_rb_1 = rb_workspace["q_value"]
+    q_agent_2(rb_workspace, t=0, n_steps=1)
+    q_values_rb_2 = rb_workspace["q_value"]
+
+    with torch.no_grad():
+        # Replay the current actor on the replay buffer to get actions of the current policy
+        # change this
+        ag_actor(rb_workspace, t=1, n_steps=1, stochastic=True, predict_proba=False)
+        action_logprobs_next = rb_workspace["action_logprobs"]
+        # Compute target q_values from both target critics: at t+1, we have Q(s+1,a+1) from the (s+1,a+1)
+        # where a+1 has been replaced in the RB
+
+        target_q_agent_1(rb_workspace, t=1, n_steps=1)
+        post_q_values_1 = rb_workspace["q_value"]
+        target_q_agent_2(rb_workspace, t=1, n_steps=1)
+        post_q_values_2 = rb_workspace["q_value"]
+
+    post_q_values = torch.min(post_q_values_1, post_q_values_2).squeeze(-1)
+    return q_values_rb_1, q_values_rb_2, post_q_values, action_logprobs_next
+
+
 def compute_critic_loss(
     cfg,
     reward,
@@ -126,6 +153,19 @@ def compute_critic_loss(
     critic_loss_1 = td_error_1.mean()
     critic_loss_2 = td_error_2.mean()
     return critic_loss_1, critic_loss_2
+
+
+def prepare_actor_loss_data(ag_actor, q_agent_1, q_agent_2, rb_workspace):
+    """Actor loss computation (done before any update)"""
+    # Recompute the q_values from the current policy, not from the actions in the buffer
+    ag_actor(rb_workspace, t=0, n_steps=1, stochastic=True, predict_proba=False)
+    action_logprobs_new = rb_workspace["action_logprobs"]
+    q_agent_1(rb_workspace, t=0, n_steps=1)
+    q_values_1 = rb_workspace["q_value"]
+    q_agent_2(rb_workspace, t=0, n_steps=1)
+    q_values_2 = rb_workspace["q_value"]
+    current_q_values = torch.min(q_values_1, q_values_2).squeeze(-1)
+    return action_logprobs_new, current_q_values
 
 
 def compute_actor_loss(ent_coef, action_logp, q_values):
@@ -220,29 +260,20 @@ def run_sac(cfg):
             # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
             must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
-            # Compute q_values from both critics with the actions present in the buffer:
-            # at t, we have Q(s,a) from the (s,a) in the RB
-            q_agent_1(rb_workspace, t=0, n_steps=1)
-            q_values_rb_1 = rb_workspace["q_value"]
-            q_agent_2(rb_workspace, t=0, n_steps=1)
-            q_values_rb_2 = rb_workspace["q_value"]
+            (
+                q_values_rb_1,
+                q_values_rb_2,
+                post_q_values,
+                action_logprobs_next,
+            ) = prepare_critic_loss_data(
+                ag_actor,
+                q_agent_1,
+                q_agent_2,
+                target_q_agent_1,
+                target_q_agent_2,
+                rb_workspace,
+            )
 
-            with torch.no_grad():
-                # Replay the current actor on the replay buffer to get actions of the current policy
-                # change this
-                ag_actor(
-                    rb_workspace, t=1, n_steps=1, stochastic=True, predict_proba=False
-                )
-                action_logprobs_next = rb_workspace["action_logprobs"]
-                # Compute target q_values from both target critics: at t+1, we have Q(s+1,a+1) from the (s+1,a+1)
-                # where a+1 has been replaced in the RB
-
-                target_q_agent_1(rb_workspace, t=1, n_steps=1)
-                post_q_values_1 = rb_workspace["q_value"]
-                target_q_agent_2(rb_workspace, t=1, n_steps=1)
-                post_q_values_2 = rb_workspace["q_value"]
-
-            post_q_values = torch.min(post_q_values_1, post_q_values_2).squeeze(-1)
             critic_loss_1, critic_loss_2 = compute_critic_loss(
                 cfg,
                 reward,
@@ -257,15 +288,9 @@ def run_sac(cfg):
             logger.add_log("critic_loss_2", critic_loss_2, nb_steps)
             critic_loss = critic_loss_1 + critic_loss_2
 
-            # Actor loss computation (done before any update) #####################################
-            # Recompute the q_values from the current policy, not from the actions in the buffer
-            ag_actor(rb_workspace, t=0, n_steps=1, stochastic=True, predict_proba=False)
-            action_logprobs_new = rb_workspace["action_logprobs"]
-            q_agent_1(rb_workspace, t=0, n_steps=1)
-            q_values_1 = rb_workspace["q_value"]
-            q_agent_2(rb_workspace, t=0, n_steps=1)
-            q_values_2 = rb_workspace["q_value"]
-            current_q_values = torch.min(q_values_1, q_values_2).squeeze(-1)
+            action_logprobs_new, current_q_values = prepare_actor_loss_data(
+                ag_actor, q_agent_1, q_agent_2, rb_workspace
+            )
 
             actor_loss = compute_actor_loss(
                 ent_coef, action_logprobs_new[0], current_q_values[0]
@@ -357,8 +382,8 @@ def run_sac(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="sac_cartpolecontinuous.yaml",
-    # config_name="sac_pendulum.yaml",
+    # config_name="sac_cartpolecontinuous.yaml",
+    config_name="sac_pendulum.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):
