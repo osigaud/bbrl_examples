@@ -39,10 +39,6 @@
             classname: torch.optim.Adam
             lr: 1e-3
 
-      entropy_optimizer:
-            classname: torch.optim.Adam
-            lr: 1e-3
-
       entropy_coef_optimizer:
             classname: torch.optim.Adam
             lr: 1e-3
