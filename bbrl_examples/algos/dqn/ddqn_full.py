@@ -63,10 +63,17 @@ def setup_optimizers(cfg, q_agent):
 
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, action):
     # Compute temporal difference
-    max_q = target_q_values.max(-1)[0].detach()
-    target = reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
+    target_actions = torch.argmax(q_values[1], dim=1)
+    # print("actions", target_actions)
+    target_act = target_actions.unsqueeze(-1)
+    # print("actions", target_act)
+    # print("q_vals", q_values[1])
+    target_q = torch.gather(target_q_values, dim=1, index=target_act).squeeze()
+    target = (
+        reward[:-1] + cfg.algorithm.discount_factor * target_q * must_bootstrap.int()
+    )
     act = action[0].unsqueeze(-1)
-    qvals = torch.gather(q_values, dim=1, index=act).squeeze()
+    qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
     td = target - qvals
     # Compute critic loss
     td_error = td**2
@@ -74,7 +81,7 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, 
     return critic_loss
 
 
-def run_dqn_full(cfg, reward_logger):
+def run_ddqn_full(cfg, reward_logger):
     # 1)  Build the  logger
     logger = Logger(cfg)
     best_reward = -10e9
@@ -156,7 +163,7 @@ def run_dqn_full(cfg, reward_logger):
         if rb.size() > cfg.algorithm.learning_starts:
             # Compute critic loss
             critic_loss = compute_critic_loss(
-                cfg, reward, must_bootstrap, q_values[0], target_q_values[1], action
+                cfg, reward, must_bootstrap, q_values, target_q_values[1], action
             )
 
             # Store the loss for tensorboard display
@@ -176,7 +183,11 @@ def run_dqn_full(cfg, reward_logger):
             tmp_steps = nb_steps
             eval_workspace = Workspace()  # Used for evaluation
             eval_agent(
-                eval_workspace, t=0, stop_variable="env/done", choose_action=True
+                eval_workspace,
+                t=0,
+                stop_variable="env/done",
+                choose_action=True,
+                save_render=True,
             )
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
@@ -218,7 +229,7 @@ def main_loop(cfg):
     for seed in range(cfg.algorithm.nb_seeds):
         cfg.algorithm.seed = seed
         torch.manual_seed(cfg.algorithm.seed)
-        run_dqn_full(cfg, reward_logger)
+        run_ddqn_full(cfg, reward_logger)
         if seed < cfg.algorithm.nb_seeds - 1:
             reward_logger.new_episode()
     reward_logger.save()
@@ -228,7 +239,9 @@ def main_loop(cfg):
 
 
 @hydra.main(
-    config_path="./configs/", config_name="dqn_full_cartpole.yaml", version_base="1.1"
+    config_path="./configs/",
+    config_name="dqn_full_lunarlander.yaml",
+    version_base="1.1",
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
