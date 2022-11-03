@@ -160,28 +160,26 @@ def run_ddpg(cfg, reward_logger):
         done, truncated, reward, action = rb_workspace[
             "env/done", "env/truncated", "env/reward", "action"
         ]
-        # print(f"done {done}, reward {reward}, action {action}")
         if nb_steps > cfg.algorithm.learning_starts:
             # Determines whether values of the critic should be propagated
             # True if the episode reached a time limit or if the task was not done
-            # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
+            # See https://colab.research.google.com/drive/1erLbRKvdkdDy0Zn1X_JhC01s1QAt4BBj?usp=sharing
             must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
             # Critic update
             # compute q_values: at t, we have Q(s,a) from the (s,a) in the RB
-            q_agent(rb_workspace, t=0, n_steps=1)
+            # the detach_actions=True changes nothing in the results
+            q_agent(rb_workspace, t=0, n_steps=1, detach_actions=True)
             q_values = rb_workspace["q_value"]
-            # print(f"q_values ante : {q_values}")
 
             with torch.no_grad():
                 # replace the action at t+1 in the RB with \pi(s_{t+1}), to compute Q(s_{t+1}, \pi(s_{t+1}) below
                 ag_actor(rb_workspace, t=1, n_steps=1)
                 # compute q_values: at t+1 we have Q(s_{t+1}, \pi(s_{t+1})
-                target_q_agent(rb_workspace, t=1, n_steps=1)
+                target_q_agent(rb_workspace, t=1, n_steps=1, detach_actions=True)
                 # q_agent(rb_workspace, t=1, n_steps=1)
             # finally q_values contains the above collection at t=0 and t=1
             post_q_values = rb_workspace["q_value"]
-            # print(f"q_values post : {post_q_values[1]}")
 
             # Compute critic loss
             critic_loss = compute_critic_loss(
@@ -225,6 +223,22 @@ def run_ddpg(cfg, reward_logger):
             logger.add_log("reward", mean, nb_steps)
             print(f"nb_steps: {nb_steps}, reward: {mean}")
             reward_logger.add(nb_steps, mean)
+            if cfg.plot_agents:
+                # plot_policy(
+                #    actor,
+                #    eval_env_agent,
+                #    "./ddpg_plots/",
+                #    cfg.gym_env.env_name,
+                #    nb_steps,
+                #    stochastic=False,
+                # )
+                plot_critic(
+                    q_agent.agent,
+                    eval_env_agent,
+                    "./ddpg_plots/",
+                    cfg.gym_env.env_name,
+                    nb_steps,
+                )
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
                 directory = "./ddpg_agent/"
@@ -232,22 +246,6 @@ def run_ddpg(cfg, reward_logger):
                     os.makedirs(directory)
                 filename = directory + "ddpg_" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
-                if cfg.plot_agents:
-                    plot_policy(
-                        actor,
-                        eval_env_agent,
-                        "./ddpg_plots/",
-                        cfg.gym_env.env_name,
-                        best_reward,
-                        stochastic=False,
-                    )
-                    plot_critic(
-                        q_agent.agent,
-                        eval_env_agent,
-                        "./ddpg_plots/",
-                        cfg.gym_env.env_name,
-                        best_reward,
-                    )
 
 
 def main_loop(cfg):
@@ -270,8 +268,8 @@ def main_loop(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    # config_name="ddpg_pendulum.yaml",
-    config_name="ddpg_lunar_lander_continuous.yaml",
+    config_name="ddpg_pendulum.yaml",
+    # config_name="ddpg_lunar_lander_continuous.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

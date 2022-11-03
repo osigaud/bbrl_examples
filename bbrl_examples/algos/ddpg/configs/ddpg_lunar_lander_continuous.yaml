@@ -1,5 +1,5 @@
     save_best: False
-    plot_agents: False
+    plot_agents: True
 
     logger:
       classname: bbrl.utils.logger.TFLogger
@@ -12,20 +12,20 @@
       nb_seeds: 1
       max_grad_norm: 0.5
       buffer_size: 2e5
-      n_envs: 1
-      n_steps: 100
+      n_envs: 8
+      n_steps: 32
       batch_size: 64
       tau_target: 0.05
-      eval_interval: 2000
+      eval_interval: 3000
       learning_starts: 10000
       nb_evals: 10
       gae: 0.8
       action_noise: 0.1
       max_epochs: 5000
-      discount_factor: 0.98
+      discount_factor: 0.999
       architecture:
-        actor_hidden_size: [256, 256]
-        critic_hidden_size: [256, 256]
+        actor_hidden_size: [64]
+        critic_hidden_size: [64, 64, 64, 64]
 
     gym_env:
       classname: __main__.make_gym_env
@@ -33,8 +33,8 @@
 
     actor_optimizer:
       classname: torch.optim.Adam
-      lr: 1e-4
+      lr: 5e-4
 
     critic_optimizer:
       classname: torch.optim.Adam
-      lr: 1e-3
+      lr: 2e-3

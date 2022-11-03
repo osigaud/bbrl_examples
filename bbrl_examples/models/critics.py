@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from bbrl.agents.agent import Agent
 
-from bbrl_examples.models.shared_models import build_mlp
+from bbrl_examples.models.shared_models import build_mlp, build_alt_mlp
 
 
 class ContinuousQAgent(Agent):
@@ -24,8 +24,8 @@ class ContinuousQAgent(Agent):
         self.set(("q_value", t), q_value)
 
     def predict_value(self, obs, action):
-        osb_act = torch.cat((obs, action), dim=0)
-        q_value = self.model(osb_act)
+        obs_act = torch.cat((obs, action), dim=0)
+        q_value = self.model(obs_act)
         return q_value
 
 
@@ -47,7 +47,7 @@ class DiscreteQAgent(Agent):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         self.is_q_function = True
-        self.model = build_mlp(
+        self.model = build_alt_mlp(
             [state_dim] + list(hidden_layers) + [action_dim], activation=nn.ReLU()
         )
 
@@ -56,7 +56,7 @@ class DiscreteQAgent(Agent):
         q_values = self.model(obs).squeeze(-1)
         self.set(("q_values", t), q_values)
         if choose_action:
-            action = q_values.argmax(1)
+            action = q_values.argmax(-1)
             self.set(("action", t), action)
 
     def predict_action(self, obs, stochastic):
@@ -65,7 +65,7 @@ class DiscreteQAgent(Agent):
             probs = torch.softmax(q_values, dim=-1)
             action = torch.distributions.Categorical(probs).sample()
         else:
-            action = q_values.argmax(0)
+            action = q_values.argmax(-1)
         return action
 
     def predict_value(self, obs, action):

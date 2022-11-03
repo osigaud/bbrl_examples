@@ -59,7 +59,10 @@ def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
 
 
 def make_gym_env(env_name):
-    return gym.make(env_name)
+    env = gym.make(env_name)
+    # print("obs:", env.observation_space)
+    # print("act:", env.action_space)
+    return env
 
 
 # Configure the optimizer
@@ -180,7 +183,7 @@ def run_ppo(cfg):
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
-        # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
+        # See https://colab.research.google.com/drive/1erLbRKvdkdDy0Zn1X_JhC01s1QAt4BBj?usp=sharing
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         with torch.no_grad():

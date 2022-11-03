@@ -7,7 +7,7 @@ import my_gym
 from bbrl.workspace import Workspace
 from bbrl.utils.chrono import Chrono
 
-path = "/eval_policies/"
+path = "/data/"
 nb_trials = 100
 
 

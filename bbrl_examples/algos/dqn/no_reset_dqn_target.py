@@ -15,7 +15,7 @@ from bbrl.agents import Agents, TemporalAgent
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
-from bbrl_examples.models.actors import EGreedyActionSelector
+from bbrl_examples.models.exploration_agents import EGreedyActionSelector
 from bbrl_examples.models.critics import DiscreteQAgent
 from bbrl.agents.gymb import NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger, RewardLogger
@@ -56,26 +56,32 @@ def setup_optimizers(cfg, q_agent):
 
 
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values, action):
+    """_summary_
+
+    Args:
+        cfg (_type_): _description_
+        reward (torch.Tensor): A (T x B) tensor containing the rewards
+        must_bootstrap (torch.Tensor): a (T x B) tensor containing 0 if the episode is completed at time $t$
+        q_values (torch.Tensor): a (T x B x A) tensor containing Q values
+        action (torch.LongTensor): a (T) long tensor containing the chosen action
+
+    Returns:
+        torch.Scalar: The DQN loss
+    """
     # Compute temporal difference
-    # Compute temporal difference
-    # print(q_values)
-    max_q = target_q_values.max(-1)
-    max_q = max_q[0].detach()
-    # print(max_q)
-    # print("r:", reward)
+    max_q = q_values.max(-1)[0].detach()
     target = (
         reward[:-1]
         + cfg.algorithm.discount_factor * max_q[1:] * must_bootstrap[1:].int()
     )
-    # print("t:", target, target.shape)
-    # print(action, action.shape)
+
     vals = q_values.squeeze()
-    # print("v", vals, vals.shape)
+
     qvals = torch.gather(vals, dim=1, index=action)
     qvals = qvals[:-1]
-    # print("qvals", qvals, qvals.shape)
+
     td = target - qvals
-    # print(td, td.shape)
+
     # Compute critic loss
     td_error = td**2
     critic_loss = td_error.mean()
@@ -140,7 +146,7 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
         nb_steps += len(q_values)
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
-        # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
+        # See https://colab.research.google.com/drive/1erLbRKvdkdDy0Zn1X_JhC01s1QAt4BBj?usp=sharing
         must_bootstrap = torch.logical_or(~done, truncated)
 
         # Compute critic loss

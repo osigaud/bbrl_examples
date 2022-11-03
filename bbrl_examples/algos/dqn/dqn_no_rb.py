@@ -138,7 +138,7 @@ def run_dqn_no_rb(cfg, reward_logger):
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
-        # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
+        # See https://colab.research.google.com/drive/1erLbRKvdkdDy0Zn1X_JhC01s1QAt4BBj?usp=sharing
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         # Compute critic loss

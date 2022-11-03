@@ -111,10 +111,10 @@ def run_dqn_full(cfg, reward_logger):
     # 7) Training loop
     for epoch in range(cfg.algorithm.max_epochs):
         # Execute the agent in the workspace
-        delta = (
-            cfg.algorithm.epsilon_init - cfg.algorithm.epsilon_end
-        ) / cfg.algorithm.max_epochs
-        train_agent.agent.agents[2].epsilon = cfg.algorithm.epsilon_init - delta * epoch
+        train_agent.agent.agents[2].epsilon = max(
+            train_agent.agent.agents[2].epsilon * cfg.algorithm.epsilon_decay,
+            cfg.algorithm.epsilon_end,
+        )
         if epoch > 0:
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
@@ -150,7 +150,7 @@ def run_dqn_full(cfg, reward_logger):
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
-        # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
+        # See https://colab.research.google.com/drive/1erLbRKvdkdDy0Zn1X_JhC01s1QAt4BBj?usp=sharing
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
         if rb.size() > cfg.algorithm.learning_starts:
@@ -228,7 +228,9 @@ def main_loop(cfg):
 
 
 @hydra.main(
-    config_path="./configs/", config_name="dqn_full_cartpole.yaml", version_base="1.1"
+    config_path="./configs/",
+    config_name="dqn_full_lunarlander.yaml",
+    version_base="1.1",
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
