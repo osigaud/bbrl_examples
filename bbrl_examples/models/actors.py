@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
-from torch.distributions import Bernoulli
+from torch.distributions import Bernoulli, Independent
 
 from bbrl_examples.models.shared_models import build_mlp, build_backbone
 from bbrl.utils.distributions import SquashedDiagGaussianDistribution
@@ -46,7 +46,14 @@ class DiscreteActor(Agent):
             [state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU()
         )
 
-    def forward(self, t, stochastic=False, predict_proba=False, **kwargs):
+    def get_distribution(self, obs):
+        scores = self.model(obs)
+        probs = torch.softmax(scores, dim=-1)
+        return torch.distributions.Categorical(probs)
+
+    def forward(
+        self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
+    ):
         """
         Compute the action given either a time step (looking into the workspace)
         or an observation (in kwargs)
@@ -67,12 +74,14 @@ class DiscreteActor(Agent):
             else:
                 action = scores.argmax(1)
 
-            entropy = torch.distributions.Categorical(probs).entropy()
             log_probs = probs[torch.arange(probs.size()[0]), action].log()
 
             self.set(("action", t), action)
             self.set(("action_logprobs", t), log_probs)
-            self.set(("entropy", t), entropy)
+
+            if compute_entropy:
+                entropy = torch.distributions.Categorical(probs).entropy()
+                self.set(("entropy", t), entropy)
 
     def predict_action(self, obs, stochastic=False):
         scores = self.model(obs)
@@ -131,7 +140,13 @@ class TunableVarianceContinuousActor(Agent):
         self.std_param = nn.parameter.Parameter(init_variance)
         self.soft_plus = torch.nn.Softplus()
 
-    def forward(self, t, stochastic=False, predict_proba=False):
+    def get_distribution(self, obs: torch.Tensor):
+        mean = self.model(obs)
+        return Independent(Normal(mean, self.soft_plus(self.std_param)), 1)
+
+    def forward(
+        self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
+    ):
         obs = self.get(("env/env_obs", t))
         if predict_proba:
             action = self.get(("action", t))
@@ -142,7 +157,8 @@ class TunableVarianceContinuousActor(Agent):
         else:
             mean = self.model(obs)
             dist = Normal(mean, self.soft_plus(self.std_param))  # std must be positive
-            self.set(("entropy", t), dist.entropy())
+            if compute_entropy:
+                self.set(("entropy", t), dist.entropy())
             if stochastic:
                 action = dist.sample()
             else:
