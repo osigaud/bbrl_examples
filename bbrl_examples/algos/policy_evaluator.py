@@ -2,13 +2,13 @@ import os
 import numpy as np
 import torch
 import gym
-import my_gym
+import bbrl_gym
 
 from bbrl.workspace import Workspace
 from bbrl.utils.chrono import Chrono
 
-path = "/data/"
-nb_trials = 100
+path = "/data/policies/"
+nb_trials = 50
 
 
 def make_gym_env(env_name):

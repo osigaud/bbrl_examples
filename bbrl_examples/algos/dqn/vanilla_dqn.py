@@ -159,7 +159,13 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
                 directory = "./dqn_critic/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "dqn_" + str(mean.item()) + ".agt"
+                filename = (
+                    directory
+                    + cfg.gym_env.env_name
+                    + "#vanilla_dqn#N1_N2_"
+                    + str(mean.item())
+                    + ".agt"
+                )
                 eval_agent.save_model(filename)
                 if cfg.plot_agents:
                     policy = eval_agent.agent.agents[1]

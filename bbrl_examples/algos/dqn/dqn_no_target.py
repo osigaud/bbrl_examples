@@ -2,8 +2,9 @@ import sys
 import os
 
 import torch
+import torch.nn as nn
 import gym
-import my_gym
+import bbrl_gym
 import hydra
 
 from omegaconf import DictConfig
@@ -59,13 +60,14 @@ def setup_optimizers(cfg, q_agent):
 def compute_critic_loss(cfg, reward, must_bootstrap, q_values, action):
     # Compute temporal difference
     max_q = q_values[1].max(-1)[0].detach()
-    target = reward[:-1] + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
+    target = (
+        reward[:-1].squeeze()
+        + cfg.algorithm.discount_factor * max_q * must_bootstrap.int()
+    )
     act = action[0].unsqueeze(-1)
     qvals = torch.gather(q_values[0], dim=1, index=act).squeeze()
-    td = target - qvals
-    # Compute critic loss
-    td_error = td**2
-    critic_loss = td_error.mean()
+    mse = nn.MSELoss()
+    critic_loss = mse(target, qvals)
     return critic_loss
 
 
@@ -169,7 +171,13 @@ def run_dqn_no_target(cfg, reward_logger):
                 directory = "./dqn_critic/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "dqn_" + str(mean.item()) + ".agt"
+                filename = (
+                    directory
+                    + cfg.gym_env.env_name
+                    + "#dqn_no_target#N1_N2_"
+                    + str(mean.item())
+                    + ".agt"
+                )
                 eval_agent.save_model(filename)
                 if cfg.plot_agents:
                     policy = eval_agent.agent.agents[1]
