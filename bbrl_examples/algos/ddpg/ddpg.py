@@ -83,16 +83,11 @@ def compute_critic_loss(cfg, reward, must_bootstrap, q_values, target_q_values):
     # print("mb", must_bootstrap.int())
     # print("q_next", q_next.squeeze(-1))
     target = (
-        reward[:-1][0]
+        reward[:-1].squeeze()
         + cfg.algorithm.discount_factor * q_next.squeeze(-1) * must_bootstrap.int()
     )
-    # print("target", target)
-    # print("q", q_values.squeeze(-1))
-    td = target - q_values.squeeze(-1)
-    # print("td", td)
-    # Compute critic loss
-    td_error = td**2
-    critic_loss = td_error.mean()
+    mse = nn.MSELoss()
+    critic_loss = mse(target, q_values.squeeze(-1))
     return critic_loss
 
 
@@ -244,7 +239,13 @@ def run_ddpg(cfg, reward_logger):
                 directory = "./ddpg_agent/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "ddpg_" + str(mean.item()) + ".agt"
+                filename = (
+                    directory
+                    + cfg.gym_env.env_name
+                    + "#ddpg#T1_T2#"
+                    + str(mean.item())
+                    + ".agt"
+                )
                 eval_agent.save_model(filename)
 
 
@@ -268,8 +269,8 @@ def main_loop(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ddpg_pendulum.yaml",
-    # config_name="ddpg_lunar_lander_continuous.yaml",
+    # config_name="ddpg_pendulum.yaml",
+    config_name="ddpg_lunar_lander_continuous.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

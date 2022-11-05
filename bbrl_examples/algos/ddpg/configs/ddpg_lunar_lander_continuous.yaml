@@ -1,4 +1,4 @@
-    save_best: False
+    save_best: True
     plot_agents: True
 
     logger:

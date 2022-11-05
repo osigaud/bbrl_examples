@@ -256,7 +256,13 @@ def run_td3(cfg, reward_logger):
                 directory = "./td3_agent/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "td3_" + str(mean.item()) + ".agt"
+                filename = (
+                    directory
+                    + cfg.gym_env.env_name
+                    + "#td3#T1_T2#"
+                    + str(mean.item())
+                    + ".agt"
+                )
                 eval_agent.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(

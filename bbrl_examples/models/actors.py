@@ -46,7 +46,7 @@ class DiscreteActor(Agent):
             [state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU()
         )
 
-    def forward(self, t, stochastic, predict_proba, **kwargs):
+    def forward(self, t, stochastic=False, predict_proba=False, **kwargs):
         """
         Compute the action given either a time step (looking into the workspace)
         or an observation (in kwargs)
@@ -74,7 +74,7 @@ class DiscreteActor(Agent):
             self.set(("action_logprobs", t), log_probs)
             self.set(("entropy", t), entropy)
 
-    def predict_action(self, obs, stochastic):
+    def predict_action(self, obs, stochastic=False):
         scores = self.model(obs)
 
         if stochastic:
@@ -93,7 +93,7 @@ class BernoulliActor(Agent):
             layers, activation=nn.ReLU(), output_activation=nn.Sigmoid()
         )
 
-    def forward(self, t, stochastic, **kwargs):
+    def forward(self, t, stochastic=False, **kwargs):
         obs = self.get(("env/env_obs", t))
         mean = self.model(obs)
         dist = Bernoulli(mean)
@@ -108,7 +108,7 @@ class BernoulliActor(Agent):
         self.set(("action", t), action)
         self.set(("action_logprobs", t), log_prob)
 
-    def predict_action(self, obs, stochastic):
+    def predict_action(self, obs, stochastic=False):
         mean = self.model(obs)
         dist = Bernoulli(mean)
         if stochastic:
@@ -131,7 +131,7 @@ class TunableVarianceContinuousActor(Agent):
         self.std_param = nn.parameter.Parameter(init_variance)
         self.soft_plus = torch.nn.Softplus()
 
-    def forward(self, t, stochastic, predict_proba):
+    def forward(self, t, stochastic=False, predict_proba=False):
         obs = self.get(("env/env_obs", t))
         if predict_proba:
             action = self.get(("action", t))
@@ -151,7 +151,7 @@ class TunableVarianceContinuousActor(Agent):
             self.set(("action", t), action)
             self.set(("action_logprobs", t), log_prob)
 
-    def predict_action(self, obs, stochastic):
+    def predict_action(self, obs, stochastic=False):
         mean = self.model(obs)
         dist = Normal(mean, self.soft_plus(self.std_param))
         if stochastic:
@@ -173,7 +173,7 @@ class StateDependentVarianceContinuousActor(Agent):
         # std must be positive
         self.std_layer = nn.Softplus()
 
-    def forward(self, t, stochastic, **kwargs):
+    def forward(self, t, stochastic=False, **kwargs):
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
@@ -191,7 +191,7 @@ class StateDependentVarianceContinuousActor(Agent):
         self.set(("action", t), action)
         self.set(("action_logprobs", t), log_prob)
 
-    def predict_action(self, obs, stochastic):
+    def predict_action(self, obs, stochastic=False):
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
         std_out = self.last_std_layer(backbone_output)
@@ -212,7 +212,7 @@ class ConstantVarianceContinuousActor(Agent):
         self.model = build_mlp(layers, activation=nn.ReLU())
         self.std_param = 2
 
-    def forward(self, t, stochastic, **kwargs):
+    def forward(self, t, stochastic=False, **kwargs):
         obs = self.get(("env/env_obs", t))
         mean = self.model(obs)
         dist = Normal(mean, self.std_param)  # std must be positive
@@ -225,7 +225,7 @@ class ConstantVarianceContinuousActor(Agent):
         self.set(("action", t), action)
         self.set(("action_logprobs", t), log_prob)
 
-    def predict_action(self, obs, stochastic):
+    def predict_action(self, obs, stochastic=False):
         mean = self.model(obs)
         dist = Normal(mean, self.std_param)
         if stochastic:
@@ -247,7 +247,7 @@ class SquashedGaussianActor(Agent):
         # std must be positive
         self.std_layer = nn.Softplus()
 
-    def forward(self, t, stochastic, predict_proba):
+    def forward(self, t, stochastic=False, predict_proba=False):
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
@@ -267,7 +267,7 @@ class SquashedGaussianActor(Agent):
             self.set(("action", t), action)
             self.set(("action_logprobs", t), log_prob)
 
-    def predict_action(self, obs, stochastic):
+    def predict_action(self, obs, stochastic=False):
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
         std_out = self.last_std_layer(backbone_output)
@@ -302,7 +302,7 @@ class ContinuousDeterministicActor(Agent):
         action = self.model(obs)
         self.set(("action", t), action)
 
-    def predict_action(self, obs, stochastic):
+    def predict_action(self, obs, stochastic=False):
         assert (
             not stochastic
         ), "ContinuousDeterministicActor cannot provide stochastic predictions"
