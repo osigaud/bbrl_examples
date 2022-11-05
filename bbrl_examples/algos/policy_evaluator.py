@@ -30,7 +30,7 @@ def evaluate_agent(filename):
         )
         rewards = eval_workspace["env/cumulated_reward"][-1]
         means[i] = rewards.mean()
-    return means.mean()
+    return means
 
 
 def read_name(filename):
