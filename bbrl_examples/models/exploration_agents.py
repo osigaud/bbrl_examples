@@ -77,3 +77,18 @@ class AddOUNoise(Agent):
         )
         self.x_prev = x
         self.set(("action", t), x)
+
+
+class KLAgent(Agent):
+    def __init__(self, model_1, model_2):
+        super().__init__()
+        self.model_1 = model_1
+        self.model_2 = model_2
+
+    def forward(self, t, **kwargs):
+        obs = self.get(("env/env_obs", t))
+
+        dist_1 = self.model_1.get_distribution(obs)
+        dist_2 = self.model_2.get_distribution(obs)
+        kl = torch.distributions.kl.kl_divergence(dist_1, dist_2)
+        self.set(("kl", t), kl)

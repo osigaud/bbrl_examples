@@ -107,6 +107,7 @@ def run_td3(cfg, reward_logger):
     # 1)  Build the  logger
     logger = Logger(cfg)
     best_reward = -10e9
+    delta_list = []
 
     # 2) Create the environment agents
     train_env_agent = AutoResetGymAgent(
@@ -246,8 +247,16 @@ def run_td3(cfg, reward_logger):
             tmp_steps = nb_steps
             eval_workspace = Workspace()  # Used for evaluation
             eval_agent(eval_workspace, t=0, stop_variable="env/done")
-            rewards = eval_workspace["env/cumulated_reward"][-1]
-            mean = rewards.mean()
+
+            rewards = eval_workspace["env/cumulated_reward"]
+            q_agent_1(eval_workspace, t=0, stop_variable="env/done")
+            q_values = eval_workspace["q_value"].squeeze()
+            delta = q_values - rewards
+            maxi_delta = delta.max().item()
+            delta_list.append(maxi_delta)
+            # print("delta", maxi_delta)
+
+            mean = rewards[-1].mean()
             logger.add_log("reward", mean, nb_steps)
             print(f"nb_steps: {nb_steps}, reward: {mean}")
             reward_logger.add(nb_steps, mean)
@@ -280,6 +289,7 @@ def run_td3(cfg, reward_logger):
                     cfg.gym_env.env_name,
                     nb_steps,
                 )
+    return delta_list
 
 
 def main_loop(cfg):

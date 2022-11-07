@@ -46,6 +46,11 @@ class DiscreteActor(Agent):
             [state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU()
         )
 
+    def copy_parameters(self, other):
+        """Copy parameters from other agent"""
+        for self_p, other_p in zip(self.parameters(), other.parameters()):
+            self_p.data.copy_(other_p)
+
     def get_distribution(self, obs):
         scores = self.model(obs)
         probs = torch.softmax(scores, dim=-1)
@@ -79,9 +84,9 @@ class DiscreteActor(Agent):
             self.set(("action", t), action)
             self.set(("action_logprobs", t), log_probs)
 
-            if compute_entropy:
-                entropy = torch.distributions.Categorical(probs).entropy()
-                self.set(("entropy", t), entropy)
+        if compute_entropy:
+            entropy = torch.distributions.Categorical(probs).entropy()
+            self.set(("entropy", t), entropy)
 
     def predict_action(self, obs, stochastic=False):
         scores = self.model(obs)

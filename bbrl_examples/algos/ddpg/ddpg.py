@@ -1,6 +1,7 @@
 import sys
 import os
 import copy
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -24,10 +25,11 @@ from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger, RewardLogger
 from bbrl_examples.models.plotters import Plotter
 from bbrl_examples.models.exploration_agents import AddGaussianNoise
+from bbrl_examples.algos.td3.td3 import run_td3
 
 # HYDRA_FULL_ERROR = 1
-
 import matplotlib
+import matplotlib.pyplot as plt
 
 matplotlib.use("TkAgg")
 
@@ -99,6 +101,7 @@ def run_ddpg(cfg, reward_logger):
     # 1)  Build the  logger
     logger = Logger(cfg)
     best_reward = -10e9
+    delta_list = []
 
     # 2) Create the environment agent
     train_env_agent = AutoResetGymAgent(
@@ -150,71 +153,83 @@ def run_ddpg(cfg, reward_logger):
         action = transition_workspace["action"]
         nb_steps += action[0].shape[0]
         rb.put(transition_workspace)
-        rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
 
-        done, truncated, reward, action = rb_workspace[
-            "env/done", "env/truncated", "env/reward", "action"
-        ]
-        if nb_steps > cfg.algorithm.learning_starts:
-            # Determines whether values of the critic should be propagated
-            # True if the episode reached a time limit or if the task was not done
-            # See https://colab.research.google.com/drive/1erLbRKvdkdDy0Zn1X_JhC01s1QAt4BBj?usp=sharing
-            must_bootstrap = torch.logical_or(~done[1], truncated[1])
+        for _ in range(cfg.algorithm.n_updates):
+            rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
 
-            # Critic update
-            # compute q_values: at t, we have Q(s,a) from the (s,a) in the RB
-            # the detach_actions=True changes nothing in the results
-            q_agent(rb_workspace, t=0, n_steps=1, detach_actions=True)
-            q_values = rb_workspace["q_value"]
+            done, truncated, reward, action = rb_workspace[
+                "env/done", "env/truncated", "env/reward", "action"
+            ]
+            if nb_steps > cfg.algorithm.learning_starts:
+                # Determines whether values of the critic should be propagated
+                # True if the episode reached a time limit or if the task was not done
+                # See https://colab.research.google.com/drive/1erLbRKvdkdDy0Zn1X_JhC01s1QAt4BBj?usp=sharing
+                must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
-            with torch.no_grad():
-                # replace the action at t+1 in the RB with \pi(s_{t+1}), to compute Q(s_{t+1}, \pi(s_{t+1}) below
-                ag_actor(rb_workspace, t=1, n_steps=1)
-                # compute q_values: at t+1 we have Q(s_{t+1}, \pi(s_{t+1})
-                target_q_agent(rb_workspace, t=1, n_steps=1, detach_actions=True)
-                # q_agent(rb_workspace, t=1, n_steps=1)
-            # finally q_values contains the above collection at t=0 and t=1
-            post_q_values = rb_workspace["q_value"]
+                # Critic update
+                # compute q_values: at t, we have Q(s,a) from the (s,a) in the RB
+                # the detach_actions=True changes nothing in the results
+                q_agent(rb_workspace, t=0, n_steps=1, detach_actions=True)
+                q_values = rb_workspace["q_value"]
 
-            # Compute critic loss
-            critic_loss = compute_critic_loss(
-                cfg, reward, must_bootstrap, q_values[0], post_q_values[1]
-            )
-            logger.add_log("critic_loss", critic_loss, nb_steps)
-            critic_optimizer.zero_grad()
-            critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                critic.parameters(), cfg.algorithm.max_grad_norm
-            )
-            critic_optimizer.step()
+                with torch.no_grad():
+                    # replace the action at t+1 in the RB with \pi(s_{t+1}), to compute Q(s_{t+1}, \pi(s_{t+1}) below
+                    ag_actor(rb_workspace, t=1, n_steps=1)
+                    # compute q_values: at t+1 we have Q(s_{t+1}, \pi(s_{t+1})
+                    target_q_agent(rb_workspace, t=1, n_steps=1, detach_actions=True)
+                    # q_agent(rb_workspace, t=1, n_steps=1)
+                # finally q_values contains the above collection at t=0 and t=1
+                post_q_values = rb_workspace["q_value"]
 
-            # Actor update
-            # Now we determine the actions the current policy would take in the states from the RB
-            ag_actor(rb_workspace, t=0, n_steps=1)
-            # We determine the Q values resulting from actions of the current policy
-            q_agent(rb_workspace, t=0, n_steps=1)
-            # and we back-propagate the corresponding loss to maximize the Q values
-            q_values = rb_workspace["q_value"]
-            actor_loss = compute_actor_loss(q_values)
-            logger.add_log("actor_loss", actor_loss, nb_steps)
-            # if -25 < actor_loss < 0 and nb_steps > 2e5:
-            actor_optimizer.zero_grad()
-            actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                actor.parameters(), cfg.algorithm.max_grad_norm
-            )
-            actor_optimizer.step()
-            # Soft update of target q function
-            tau = cfg.algorithm.tau_target
-            soft_update_params(critic, target_critic, tau)
-            # soft_update_params(actor, target_actor, tau)
+                # Compute critic loss
+                critic_loss = compute_critic_loss(
+                    cfg, reward, must_bootstrap, q_values[0], post_q_values[1]
+                )
+                logger.add_log("critic_loss", critic_loss, nb_steps)
+                critic_optimizer.zero_grad()
+                critic_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    critic.parameters(), cfg.algorithm.max_grad_norm
+                )
+                critic_optimizer.step()
+
+                # Actor update
+                # Now we determine the actions the current policy would take in the states from the RB
+                ag_actor(rb_workspace, t=0, n_steps=1)
+                # We determine the Q values resulting from actions of the current policy
+                q_agent(rb_workspace, t=0, n_steps=1)
+                # and we back-propagate the corresponding loss to maximize the Q values
+                q_values = rb_workspace["q_value"]
+                actor_loss = compute_actor_loss(q_values)
+                logger.add_log("actor_loss", actor_loss, nb_steps)
+                # if -25 < actor_loss < 0 and nb_steps > 2e5:
+                actor_optimizer.zero_grad()
+                actor_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    actor.parameters(), cfg.algorithm.max_grad_norm
+                )
+                actor_optimizer.step()
+                # Soft update of target q function
+                tau = cfg.algorithm.tau_target
+                soft_update_params(critic, target_critic, tau)
+                # soft_update_params(actor, target_actor, tau)
 
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
             eval_workspace = Workspace()  # Used for evaluation
             eval_agent(eval_workspace, t=0, stop_variable="env/done")
-            rewards = eval_workspace["env/cumulated_reward"][-1]
-            mean = rewards.mean()
+
+            rewards = eval_workspace["env/cumulated_reward"]
+            q_agent(eval_workspace, t=0, stop_variable="env/done")
+            q_values = eval_workspace["q_value"].squeeze()
+            delta = q_values - rewards
+            maxi_delta = delta.max(axis=0)
+            # print(maxi_delta)
+            maxi_delta = maxi_delta[0].mean()
+            delta_list.append(maxi_delta.item())
+            # print("delta", maxi_delta)
+
+            mean = rewards[-1].mean()
             logger.add_log("reward", mean, nb_steps)
             print(f"nb_steps: {nb_steps}, reward: {mean}")
             reward_logger.add(nb_steps, mean)
@@ -247,6 +262,7 @@ def run_ddpg(cfg, reward_logger):
                     + ".agt"
                 )
                 eval_agent.save_model(filename)
+    return delta_list
 
 
 def main_loop(cfg):
@@ -255,16 +271,46 @@ def main_loop(cfg):
     if not os.path.exists(logdir):
         os.makedirs(logdir)
     reward_logger = RewardLogger(logdir + "ddpg.steps", logdir + "ddpg.rwd")
+    delta_list = []
+    delta_list_td3 = []
+    delta_list_std = []
+    delta_list_td3_std = []
     for seed in range(cfg.algorithm.nb_seeds):
         cfg.algorithm.seed = seed
         torch.manual_seed(cfg.algorithm.seed)
-        run_ddpg(cfg, reward_logger)
-        if seed < cfg.algorithm.nb_seeds - 1:
-            reward_logger.new_episode()
-    reward_logger.save()
+        dd = run_ddpg(cfg, reward_logger)
+        td = run_td3(cfg, reward_logger)
+        delta_list.append(dd)
+        delta_list_td3.append(td)
+        delta_list_std.append(np.array(dd).std())
+        delta_list_td3_std.append(np.array(td).std())
+
+    l1 = np.array(delta_list) + np.array(delta_list_std)
+    l2 = np.array(delta_list) - np.array(delta_list_std)
+
+    l1_td3 = np.array(delta_list_td3) + np.array(delta_list_td3_std)
+    l2_td3 = np.array(delta_list_td3) - np.array(delta_list_td3_std)
+
     chrono.stop()
-    # plotter = Plotter(logdir + "ddpg.steps", logdir + "ddpg.rwd")
-    # plotter.plot_reward("ddpg", cfg.gym_env.env_name)
+    plt.figure()
+    plt.plot(np.array(delta_list).mean(), c="r", label="DDPG")
+    plt.plot(np.array(delta_list_td3).mean(), c="b", label="TD3")
+    plt.fill_between(
+        np.arange(0, len(delta_list), 1), l1, l2, color="pink", label="std reward"
+    )
+    plt.fill_between(
+        np.arange(0, len(delta_list_td3), 1),
+        l1_td3,
+        l2_td3,
+        color="lightblue",
+        label="std reward",
+    )
+    plt.title("LunarLander-v2 -delta")
+    plt.xlabel("episode")
+    plt.ylabel("delta")
+    plt.savefig("delta.pdf")
+    plt.legend()
+    plt.show()
 
 
 @hydra.main(
