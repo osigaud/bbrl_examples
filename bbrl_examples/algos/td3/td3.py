@@ -1,6 +1,8 @@
 import sys
 import os
 import copy
+import numpy as np
+
 import torch
 import torch.nn as nn
 import gym
@@ -252,9 +254,8 @@ def run_td3(cfg, reward_logger):
             q_agent_1(eval_workspace, t=0, stop_variable="env/done")
             q_values = eval_workspace["q_value"].squeeze()
             delta = q_values - rewards
-            maxi_delta = delta.max().item()
+            maxi_delta = delta.max(axis=0)[0].detach().numpy()
             delta_list.append(maxi_delta)
-            # print("delta", maxi_delta)
 
             mean = rewards[-1].mean()
             logger.add_log("reward", mean, nb_steps)
@@ -289,7 +290,9 @@ def run_td3(cfg, reward_logger):
                     cfg.gym_env.env_name,
                     nb_steps,
                 )
-    return delta_list
+    delta_list_mean = np.array(delta_list).mean(axis=1)
+    delta_list_std = np.array(delta_list).std(axis=1)
+    return delta_list_mean, delta_list_std
 
 
 def main_loop(cfg):

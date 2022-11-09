@@ -146,6 +146,7 @@ def run_a2c(cfg):
                 n_steps=cfg.algorithm.n_steps - 1,
                 stochastic=True,
                 predict_proba=False,
+                compute_entropy=True,
             )
         else:
             a2c_agent(
@@ -154,6 +155,7 @@ def run_a2c(cfg):
                 n_steps=cfg.algorithm.n_steps,
                 stochastic=True,
                 predict_proba=False,
+                compute_entropy=True,
             )
 
         # Compute the critic value over the whole workspace

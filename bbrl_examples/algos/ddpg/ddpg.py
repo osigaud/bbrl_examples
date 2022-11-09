@@ -223,11 +223,8 @@ def run_ddpg(cfg, reward_logger):
             q_agent(eval_workspace, t=0, stop_variable="env/done")
             q_values = eval_workspace["q_value"].squeeze()
             delta = q_values - rewards
-            maxi_delta = delta.max(axis=0)
-            # print(maxi_delta)
-            maxi_delta = maxi_delta[0].mean()
-            delta_list.append(maxi_delta.item())
-            # print("delta", maxi_delta)
+            maxi_delta = delta.max(axis=0)[0].detach().numpy()
+            delta_list.append(maxi_delta)
 
             mean = rewards[-1].mean()
             logger.add_log("reward", mean, nb_steps)
@@ -262,7 +259,10 @@ def run_ddpg(cfg, reward_logger):
                     + ".agt"
                 )
                 eval_agent.save_model(filename)
-    return delta_list
+
+    delta_list_mean = np.array(delta_list).mean(axis=1)
+    delta_list_std = np.array(delta_list).std(axis=1)
+    return delta_list_mean, delta_list_std
 
 
 def main_loop(cfg):
@@ -271,40 +271,36 @@ def main_loop(cfg):
     if not os.path.exists(logdir):
         os.makedirs(logdir)
     reward_logger = RewardLogger(logdir + "ddpg.steps", logdir + "ddpg.rwd")
-    delta_list = []
-    delta_list_td3 = []
-    delta_list_std = []
-    delta_list_td3_std = []
-    for seed in range(cfg.algorithm.nb_seeds):
-        cfg.algorithm.seed = seed
-        torch.manual_seed(cfg.algorithm.seed)
-        dd = run_ddpg(cfg, reward_logger)
-        td = run_td3(cfg, reward_logger)
-        delta_list.append(dd)
-        delta_list_td3.append(td)
-        delta_list_std.append(np.array(dd).std())
-        delta_list_td3_std.append(np.array(td).std())
+    torch.manual_seed(cfg.algorithm.seed)
+    delta_list_mean, delta_list_std = run_ddpg(cfg, reward_logger)
+    delta_list_mean_td3, delta_list_std_td3 = run_td3(cfg, reward_logger)
 
-    l1 = np.array(delta_list) + np.array(delta_list_std)
-    l2 = np.array(delta_list) - np.array(delta_list_std)
+    l1 = delta_list_mean + delta_list_std
+    l2 = delta_list_mean - delta_list_std
 
-    l1_td3 = np.array(delta_list_td3) + np.array(delta_list_td3_std)
-    l2_td3 = np.array(delta_list_td3) - np.array(delta_list_td3_std)
+    l1_td3 = delta_list_mean_td3 + delta_list_std_td3
+    l2_td3 = delta_list_mean_td3 - delta_list_std_td3
 
     chrono.stop()
     plt.figure()
-    plt.plot(np.array(delta_list).mean(), c="r", label="DDPG")
-    plt.plot(np.array(delta_list_td3).mean(), c="b", label="TD3")
     plt.fill_between(
-        np.arange(0, len(delta_list), 1), l1, l2, color="pink", label="std reward"
+        np.arange(0, len(delta_list_mean), 1),
+        l1,
+        l2,
+        facecolor="pink",
+        label="std reward",
+        alpha=0.5,
     )
     plt.fill_between(
-        np.arange(0, len(delta_list_td3), 1),
+        np.arange(0, len(delta_list_mean_td3), 1),
         l1_td3,
         l2_td3,
-        color="lightblue",
+        facecolor="lightblue",
         label="std reward",
+        alpha=0.5,
     )
+    plt.plot(delta_list_mean, c="r", label="DDPG")
+    plt.plot(delta_list_mean_td3, c="b", label="TD3")
     plt.title("LunarLander-v2 -delta")
     plt.xlabel("episode")
     plt.ylabel("delta")

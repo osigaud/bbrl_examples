@@ -138,6 +138,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
                 n_steps=cfg.algorithm.n_steps - 1,
                 stochastic=True,
                 predict_proba=False,
+                compute_entropy=True,
             )
         else:
             a2c_agent(
@@ -146,6 +147,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
                 n_steps=cfg.algorithm.n_steps,
                 stochastic=True,
                 predict_proba=False,
+                compute_entropy=True,
             )
 
         # Compute the critic value over the whole workspace
@@ -199,7 +201,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
                 stop_variable="env/done",
                 stochastic=False,
                 predict_proba=False,
-                save_render=True,
+                save_render=False,
             )
             cum_rewards = eval_workspace["env/cumulated_reward"][-1]
             rewards = eval_workspace["env/reward"][-1]
@@ -241,7 +243,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
 
 
 @hydra.main(
-    config_path="./configs/", config_name="sac_rocket_lander.yaml", version_base="1.1"
+    config_path="./configs/", config_name="a2c_rocket_lander.yaml", version_base="1.1"
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))

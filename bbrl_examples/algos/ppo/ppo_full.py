@@ -12,18 +12,20 @@ import hydra
 from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
-from bbrl.agents import Agents, TemporalAgent
 
 from bbrl.utils.functionalb import gae
 
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
+from bbrl.agents import Agents, TemporalAgent
+from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
+
 from bbrl_examples.models.critics import VAgent
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
 from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.exploration_agents import KLAgent
-from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
+
 from bbrl_examples.models.loggers import Logger
 
 # HYDRA_FULL_ERROR = 1

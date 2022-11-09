@@ -41,6 +41,7 @@ def play_agents(folder) -> None:
         print(env_name)
         env = make_gym_env(env_name)
         eval_agent = torch.load(os.getcwd() + path + policy_file)
+        eval_agent = eval_agent.agent.agents[1]
         play(env, eval_agent)
 
 
