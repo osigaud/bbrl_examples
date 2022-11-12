@@ -57,7 +57,7 @@ def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
 def make_gym_env(env_name):
     # return gym.make(env_name)
     env = MazeMDPContinuousWrapper(
-        gym.make(env_name, kwargs={"width": 3, "height": 3, "ratio": 0.0})
+        gym.make(env_name, kwargs={"width": 5, "height": 5, "ratio": 0.2})
     )
     return env
 
@@ -157,8 +157,7 @@ def run_dqn_full(cfg, reward_logger):
             # The q agent needs to be executed on the rb_workspace workspace (gradients are removed in workspace).
             q_agent(rb_workspace, t=0, n_steps=2, choose_action=False)
 
-            states, q_values, done, truncated, reward, action = rb_workspace[
-                "env/env_obs",
+            q_values, done, truncated, reward, action = rb_workspace[
                 "q_values",
                 "env/done",
                 "env/truncated",
@@ -166,9 +165,6 @@ def run_dqn_full(cfg, reward_logger):
                 "action",
             ]
 
-            # print("states", f"%1{states}")
-            # print("actions", action)
-            # print("rewards", reward)
             with torch.no_grad():
                 target_q_agent(rb_workspace, t=0, n_steps=2, stochastic=True)
 
@@ -206,8 +202,14 @@ def run_dqn_full(cfg, reward_logger):
             eval_agent(
                 eval_workspace, t=0, stop_variable="env/done", choose_action=True
             )
-            rewards = eval_workspace["env/cumulated_reward"][-1]
-            mean = rewards.mean()
+            states, actions, rewards = eval_workspace[
+                "env/env_obs", "action", "env/reward"
+            ]
+            print("states", f"{states[0]}")
+            print("actions", action)
+            print("rewards", reward)
+            final_rewards = eval_workspace["env/cumulated_reward"][-1]
+            mean = final_rewards.mean()
             logger.add_log("reward", mean, nb_steps)
             print(f"epoch: {epoch}, reward: {mean}")
             reward_logger.add(nb_steps, mean)
@@ -224,23 +226,23 @@ def run_dqn_full(cfg, reward_logger):
                     + ".agt"
                 )
                 eval_agent.save_model(filename)
-                if cfg.plot_agents:
-                    policy = eval_agent.agent.agents[1]
-                    plot_policy(
-                        policy,
-                        eval_env_agent,
-                        "./dqn_plots/",
-                        cfg.gym_env.env_name,
-                        best_reward,
-                        stochastic=False,
-                    )
-                    plot_critic(
-                        policy,
-                        eval_env_agent,
-                        "./dqn_plots/",
-                        cfg.gym_env.env_name,
-                        best_reward,
-                    )
+            if cfg.plot_agents:
+                policy = eval_agent.agent.agents[1]
+                plot_policy(
+                    policy,
+                    eval_env_agent,
+                    "./dqn_plots/",
+                    cfg.gym_env.env_name,
+                    nb_steps,
+                    stochastic=False,
+                )
+                plot_critic(
+                    policy,
+                    eval_env_agent,
+                    "./dqn_plots/",
+                    cfg.gym_env.env_name,
+                    nb_steps,
+                )
 
 
 def main_loop(cfg):
@@ -264,7 +266,7 @@ def main_loop(cfg):
 @hydra.main(
     config_path="./configs/",
     config_name="dqn_maze.yaml",
-    # version_base="1.1",
+    version_base="1.1",
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
