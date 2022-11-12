@@ -205,9 +205,9 @@ def run_dqn_full(cfg, reward_logger):
             states, actions, rewards = eval_workspace[
                 "env/env_obs", "action", "env/reward"
             ]
-            print("states", f"{states[0]}")
-            print("actions", action)
-            print("rewards", reward)
+            # print("states", states.squeeze(), states.shape)
+            # print("actions", actions.squeeze(), actions.shape)
+            # print("rewards", rewards.squeeze(), rewards.shape)
             final_rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = final_rewards.mean()
             logger.add_log("reward", mean, nb_steps)

@@ -73,7 +73,7 @@ class MazeMDPContinuousWrapper(gym.Wrapper):
     def reset(self):
         obs = self.env.reset()
         x = self.env.coord_x[obs]
-        y = self.env.coord_x[obs]
+        y = self.env.coord_y[obs]
         xc = x + random.random()
         yc = y + random.random()
         continuous_obs = [xc, yc]
@@ -85,7 +85,7 @@ class MazeMDPContinuousWrapper(gym.Wrapper):
         # sample anywhere in the [1, 1] cell...
         next_state, reward, done, info = self.env.step(action)
         x = self.env.coord_x[next_state]
-        y = self.env.coord_x[next_state]
+        y = self.env.coord_y[next_state]
         xc = x + random.random()
         yc = y + random.random()
         next_continuous = [xc, yc]
