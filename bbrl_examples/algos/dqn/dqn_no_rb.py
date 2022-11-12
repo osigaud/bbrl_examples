@@ -222,9 +222,7 @@ def main_loop(cfg):
     plotter.plot_reward("dqn no replay", cfg.gym_env.env_name)
 
 
-@hydra.main(
-    config_path="./configs/", config_name="dqn_cartpole.yaml", version_base="1.1"
-)
+@hydra.main(config_path="./configs/", config_name="dqn_cartpole.yaml")
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     main_loop(cfg)

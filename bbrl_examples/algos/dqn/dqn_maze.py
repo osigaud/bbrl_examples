@@ -3,10 +3,14 @@ import os
 
 import copy
 
+import argparse
+
 import torch
 import torch.nn as nn
 import gym
 import bbrl_gym
+
+from bbrl_examples.wrappers.wrappers import MazeMDPContinuousWrapper
 
 import hydra
 from omegaconf import DictConfig
@@ -35,7 +39,6 @@ matplotlib.use("TkAgg")
 # Create the DQN Agent
 def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
-    print(obs_size, act_size)
     critic = DiscreteQAgent(obs_size, cfg.algorithm.architecture.hidden_size, act_size)
     target_critic = copy.deepcopy(critic)
     explorer = EGreedyActionSelector(cfg.algorithm.epsilon_init)
@@ -52,8 +55,11 @@ def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
 
 
 def make_gym_env(env_name):
-    # return MazeMDPWrapper(gym.make(env_name))
-    return gym.make(env_name)
+    # return gym.make(env_name)
+    env = MazeMDPContinuousWrapper(
+        gym.make(env_name, kwargs={"width": 3, "height": 3, "ratio": 0.0})
+    )
+    return env
 
 
 # Configure the optimizer
@@ -90,11 +96,13 @@ def run_dqn_full(cfg, reward_logger):
         cfg.algorithm.n_envs,
         cfg.algorithm.seed,
     )
+    """
     print(train_env_agent.is_continuous_action())
     print(train_env_agent.is_discrete_action())
     print(train_env_agent.action_space)
     print(train_env_agent.is_continuous_state())
     print(train_env_agent.is_discrete_state())
+    """
 
     eval_env_agent = NoAutoResetGymAgent(
         get_class(cfg.gym_env),
@@ -149,10 +157,18 @@ def run_dqn_full(cfg, reward_logger):
             # The q agent needs to be executed on the rb_workspace workspace (gradients are removed in workspace).
             q_agent(rb_workspace, t=0, n_steps=2, choose_action=False)
 
-            q_values, done, truncated, reward, action = rb_workspace[
-                "q_values", "env/done", "env/truncated", "env/reward", "action"
+            states, q_values, done, truncated, reward, action = rb_workspace[
+                "env/env_obs",
+                "q_values",
+                "env/done",
+                "env/truncated",
+                "env/reward",
+                "action",
             ]
 
+            # print("states", f"%1{states}")
+            # print("actions", action)
+            # print("rewards", reward)
             with torch.no_grad():
                 target_q_agent(rb_workspace, t=0, n_steps=2, stochastic=True)
 
@@ -252,6 +268,11 @@ def main_loop(cfg):
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
+    # parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # parser.add_argument("hydra.job.chdir", default="True")
+    # args = parser.parse_args()
+
+    # print(args)
     main_loop(cfg)
 
 
