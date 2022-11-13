@@ -40,7 +40,7 @@ matplotlib.use("TkAgg")
 def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
     if train_env_agent.is_continuous_action():
-        action_agent = TunableVarianceContinuousActor(
+        action_agent = globals()[cfg.algorithm.actor_type](
             obs_size, cfg.algorithm.architecture.hidden_size, act_size
         )
         # print_agent = PrintAgent(*{"critic", "env/reward", "env/done", "action", "env/env_obs"})
@@ -168,7 +168,7 @@ def run_a2c(cfg):
             "action",
             "action_logprobs",
         ]
-        print("action", action)
+        # print("action", action)
         nb_steps += action[0].shape[0]
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
@@ -220,7 +220,13 @@ def run_a2c(cfg):
                 directory = "./a2c_policies/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "a2c_" + str(mean.item()) + ".agt"
+                filename = (
+                    directory
+                    + cfg.gym_env.env_name
+                    + "#a2c#A1_22#"
+                    + str(mean.item())
+                    + ".agt"
+                )
                 policy = eval_agent.agent.agents[1]
                 policy.save_model(filename)
                 critic = critic_agent.agent
@@ -245,7 +251,7 @@ def run_a2c(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="a2c_cartpolecontinuous.yaml",
+    config_name="a2c_pendulum.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

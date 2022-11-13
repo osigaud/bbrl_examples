@@ -21,6 +21,7 @@
       entropy_coef: 2.55e-4
       critic_coef: 0.5
       a2c_coef: 1
+      actor_type: ConstantVarianceContinuousActor
       architecture:
         hidden_size: [25, 25]
 

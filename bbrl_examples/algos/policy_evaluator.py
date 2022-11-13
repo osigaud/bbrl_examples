@@ -6,6 +6,9 @@ import bbrl_gym
 
 from bbrl.workspace import Workspace
 from bbrl.utils.chrono import Chrono
+from bbrl.agents.gymb import NoAutoResetGymAgent
+from bbrl.agents import Agents, TemporalAgent
+from bbrl import get_arguments, get_class
 
 path = "/data/policies/"
 nb_trials = 50
@@ -16,12 +19,21 @@ def make_gym_env(env_name):
     return gym.make(env_name)
 
 
-def evaluate_agent(filename):
+def evaluate_agent(filename, env_name):
     eval_agent = torch.load(os.getcwd() + path + filename)
+    eval_env_agent = NoAutoResetGymAgent(
+        make_gym_env,
+        {"env_name": env_name},
+        1,
+        1,
+    )
+    print(eval_agent)
+    loop = Agents(eval_env_agent, eval_agent)
+    final_agent = TemporalAgent(loop)
     means = np.zeros(nb_trials)
     for i in range(nb_trials):
         eval_workspace = Workspace()  # Used for evaluation
-        eval_agent(
+        final_agent(
             eval_workspace,
             t=0,
             stop_variable="env/done",
@@ -67,14 +79,14 @@ class Evaluator:
             env_name, algo, team_name = read_name(policy_file)
 
             if env_name in self.score_dic:
-                scores = evaluate_agent(policy_file)
+                scores = evaluate_agent(policy_file, env_name)
                 self.score_dic[env_name][scores.mean()] = [
                     team_name,
                     algo,
                     scores.std(),
                 ]
             else:
-                scores = evaluate_agent(policy_file)
+                scores = evaluate_agent(policy_file, env_name)
                 tmp_dic = {scores.mean(): [team_name, algo, scores.std()]}
                 self.score_dic[env_name] = tmp_dic
 

@@ -223,7 +223,13 @@ def run_a2c(cfg):
                 directory = "./a2c_policies/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "a2c_" + str(mean.item()) + ".agt"
+                filename = (
+                    directory
+                    + cfg.gym_env.env_name
+                    + "#a2c#A1_22#"
+                    + str(mean.item())
+                    + ".agt"
+                )
                 policy = eval_agent.agent.agents[1]
                 policy.save_model(filename)
                 critic = critic_agent.agent
