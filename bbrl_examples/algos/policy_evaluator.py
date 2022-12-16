@@ -5,40 +5,50 @@ import gym
 import bbrl_gym
 
 from bbrl.workspace import Workspace
-from bbrl.utils.chrono import Chrono
+from bbrl.agents import Agents, PrintAgent, TemporalAgent
 from bbrl.agents.gymb import NoAutoResetGymAgent
-from bbrl.agents import Agents, TemporalAgent
-from bbrl import get_arguments, get_class
+from bbrl.utils.chrono import Chrono
+
+from bbrl_examples.models.actors import *
+from bbrl_examples.models.critics import *
 
 path = "/data/policies/"
-nb_trials = 50
+nb_trials = 200
+seed = 3
 
 
 def make_gym_env(env_name):
     """Create the used environment"""
-    return gym.make(env_name)
+    env = gym.make(env_name)
+    # print(env)
+    return env
 
 
 def evaluate_agent(filename, env_name):
-    eval_agent = torch.load(os.getcwd() + path + filename)
-    eval_env_agent = NoAutoResetGymAgent(
-        make_gym_env,
-        {"env_name": env_name},
-        1,
-        1,
-    )
-    print(eval_agent)
-    loop = Agents(eval_env_agent, eval_agent)
-    final_agent = TemporalAgent(loop)
+    agent = torch.load(os.getcwd() + path + filename)
+    if isinstance(agent, TemporalAgent):
+        eval_agent = agent
+    else:
+        eval_env = NoAutoResetGymAgent(
+            make_gym_env,
+            {"env_name": env_name},
+            1,
+            seed,
+        )
+        # pa = PrintAgent()
+        agents = Agents(eval_env, agent)
+        eval_agent = TemporalAgent(agents)
+    # print(eval_agent)
+    
     means = np.zeros(nb_trials)
     for i in range(nb_trials):
         eval_workspace = Workspace()  # Used for evaluation
-        final_agent(
+        eval_agent(
             eval_workspace,
             t=0,
             stop_variable="env/done",
-            # stochastic=False,
-            # predict_proba=False,
+            stochastic=False,
+            predict_proba=False,
         )
         rewards = eval_workspace["env/cumulated_reward"][-1]
         means[i] = rewards.mean()
