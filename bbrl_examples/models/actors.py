@@ -346,3 +346,37 @@ class ActorAgent(Agent):
             action = probs.argmax(1)
 
         self.set(("action", t), action)
+
+
+class SquashedGaussianTQCActor(Agent):
+    def __init__(self, state_dim, hidden_layers, action_dim):
+        super().__init__()
+        backbone_dim = [state_dim] + list(hidden_layers)
+        self.layers = build_backbone(backbone_dim, activation=nn.ReLU())
+        self.backbone = nn.Sequential(*self.layers)
+        self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
+        self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
+        self.action_dist = SquashedDiagGaussianDistribution(action_dim)
+        # std must be positive
+
+    def dist(self, obs: torch.Tensor):
+        backbone_output = self.backbone(obs)
+        mean = self.last_mean_layer(backbone_output)
+        std_out = self.last_std_layer(backbone_output)
+
+        std_out = std_out.clamp(-20, 2)  # as in the official code
+        std = torch.exp(std_out)  # A softplus could work
+        return self.action_dist.make_distribution(mean, std)
+
+    def forward(self, t, stochastic):
+        action_dist = self.dist(self.get(("env/env_obs", t)))
+        action = action_dist.sample() if stochastic else action_dist.mode()
+
+        log_prob = action_dist.log_prob(action)
+        self.set((f"action", t), action)
+        self.set(("action_logprobs", t), log_prob)
+
+    def predict_action(self, obs, stochastic: bool):
+        action_dist = self.dist(obs)
+        action = action_dist.sample() if stochastic else action_dist.mode()
+        return action

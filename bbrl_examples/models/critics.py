@@ -71,3 +71,26 @@ class DiscreteQAgent(Agent):
     def predict_value(self, obs, action):
         q_values = self.model(obs).squeeze(-1)
         return q_values[action[0].int()]
+
+class TQNetwork(Agent):
+    def __init__(self, state_dim, hidden_layers, n_nets, action_dim, n_quantiles):
+        super().__init__()
+        self.is_q_function = True
+        self.nets = []
+        for i in range(n_nets):
+            net = build_mlp([state_dim + action_dim] + list(hidden_layers) + [n_quantiles], activation=nn.ReLU())
+            self.add_module(f'qf{i}', net)
+            self.nets.append(net)
+
+    def forward(self, t):
+        obs = self.get(("env/env_obs", t))
+        action = self.get(("action", t))
+        obs_act = torch.cat((obs, action), dim=1)
+        quantiles = torch.stack(tuple(net(obs_act) for net in self.nets), dim=1)
+        self.set(("quantiles", t), quantiles)
+        return quantiles
+
+    def predict_value(self, obs, action):
+        obs_act = torch.cat((obs, action), dim=0)
+        quantiles = torch.stack(tuple(net(obs_act) for net in self.nets), dim=1)
+        return quantiles
