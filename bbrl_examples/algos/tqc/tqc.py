@@ -19,9 +19,8 @@ from bbrl_examples.models.loggers import Logger
 from bbrl.utils.replay_buffer import ReplayBuffer
 
 from bbrl_examples.models.actors import SquashedGaussianTQCActor
-from bbrl_examples.models.critics import TQNetwork
+from bbrl_examples.models.critics import TruncatedQuantileNetwork
 
-from bbrl_examples.models.critics import ContinuousQAgent
 from bbrl_examples.models.shared_models import soft_update_params
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 
@@ -52,7 +51,7 @@ def create_tqc_agent(cfg, train_env_agent, eval_env_agent):
     ev_agent = Agents(eval_env_agent, actor)
 
     # Builds the critics
-    critic = TQNetwork(
+    critic = TruncatedQuantileNetwork(
         obs_size, cfg.algorithm.architecture.critic_hidden_size,
         cfg.algorithm.architecture.n_nets, act_size,
         cfg.algorithm.architecture.n_quantiles
@@ -346,7 +345,8 @@ def run_tqc(cfg):
 @hydra.main(
     config_path="./configs/",
     # config_name="tqc_cartpolecontinuous.yaml",
-    config_name="tqc_pendulum.yaml",
+    # config_name="tqc_pendulum.yaml",
+    config_name="tqc_rocket_lander.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

@@ -72,7 +72,7 @@ class DiscreteQAgent(Agent):
         q_values = self.model(obs).squeeze(-1)
         return q_values[action[0].int()]
 
-class TQNetwork(Agent):
+class TruncatedQuantileNetwork(Agent):
     def __init__(self, state_dim, hidden_layers, n_nets, action_dim, n_quantiles):
         super().__init__()
         self.is_q_function = True
