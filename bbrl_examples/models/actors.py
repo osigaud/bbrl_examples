@@ -147,7 +147,7 @@ class TunableVarianceContinuousActor(Agent):
 
     def get_distribution(self, obs: torch.Tensor):
         mean = self.model(obs)
-        return Independent(Normal(mean, self.soft_plus(self.std_param)), 1)
+        return Independent(Normal(mean, self.soft_plus(self.std_param[: ,0])), 1)
 
     def forward(
         self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
@@ -268,7 +268,7 @@ class SquashedGaussianActor(Agent):
         # std must be positive
         self.std_layer = nn.Softplus()
 
-    def forward(self, t, stochastic=False, predict_proba=False):
+    def forward(self, t, stochastic=False, predict_proba=False, **kwargs):
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
@@ -328,3 +328,21 @@ class ContinuousDeterministicActor(Agent):
             not stochastic
         ), "ContinuousDeterministicActor cannot provide stochastic predictions"
         return self.model(obs)
+
+
+class ActorAgent(Agent):
+    """Choose an action (either according to p(a_t|s_t) when stochastic is true,
+               or with argmax if false.
+            """
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, t, stochastic, **kwargs):
+        probs = self.get(("action_probs", t))
+        if stochastic:
+            action = torch.distributions.Categorical(probs).sample()
+        else:
+            action = probs.argmax(1)
+
+        self.set(("action", t), action)

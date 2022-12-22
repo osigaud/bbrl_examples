@@ -13,9 +13,10 @@ from bbrl_examples.models.actors import *
 from bbrl_examples.models.critics import *
 
 path = "/data/policies/"
-nb_trials = 200
+nb_trials = 2
 seed = 3
 
+from script_ddqn import *
 
 def make_gym_env(env_name):
     """Create the used environment"""
@@ -38,7 +39,7 @@ def evaluate_agent(filename, env_name):
         # pa = PrintAgent()
         agents = Agents(eval_env, agent)
         eval_agent = TemporalAgent(agents)
-    # print(eval_agent)
+    print(eval_agent)
     
     means = np.zeros(nb_trials)
     for i in range(nb_trials):
@@ -48,7 +49,7 @@ def evaluate_agent(filename, env_name):
             t=0,
             stop_variable="env/done",
             stochastic=False,
-            predict_proba=False,
+            # predict_proba=False,
         )
         rewards = eval_workspace["env/cumulated_reward"][-1]
         means[i] = rewards.mean()
@@ -99,6 +100,7 @@ class Evaluator:
                 scores = evaluate_agent(policy_file, env_name)
                 tmp_dic = {scores.mean(): [team_name, algo, scores.std()]}
                 self.score_dic[env_name] = tmp_dic
+            self.display_hall_of_fame()
 
     def display_hall_of_fame(self) -> None:
         """

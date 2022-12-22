@@ -3,7 +3,7 @@ import torch.nn as nn
 
 def build_backbone(sizes, activation):
     layers = []
-    for j in range(len(sizes) - 2):
+    for j in range(len(sizes) - 1):
         layers += [nn.Linear(sizes[j], sizes[j + 1]), activation]
     return layers
 

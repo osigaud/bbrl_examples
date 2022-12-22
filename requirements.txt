@@ -15,4 +15,7 @@ hydra-core
 seaborn
 mujoco-py<2.2,>=2.1
 pyglet
+easypip
+stable_baselines3
+pyglet==1.5.27
 
