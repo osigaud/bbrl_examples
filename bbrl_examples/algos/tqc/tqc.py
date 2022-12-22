@@ -34,7 +34,7 @@ import matplotlib
 matplotlib.use("TkAgg")
 
 
-# Create the tqc Agent
+# Create the TQC Agent
 def create_tqc_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
     assert (
@@ -140,7 +140,7 @@ def compute_critic_loss(
         y = reward[0].unsqueeze(-1) + must_bootstrap.int().unsqueeze(-1) * cfg.algorithm.discount_factor * (
                     truncated_sorted_quantiles - logprobs.unsqueeze(-1))
 
-    # computing the hubber loss
+    # computing the Huber loss
     pairwise_delta = y[:, None, None, :] - quantiles[:, :, :, None]  # batch x nets x quantiles x samples
 
     abs_pairwise_delta = torch.abs(pairwise_delta)
@@ -346,7 +346,8 @@ def run_tqc(cfg):
     config_path="./configs/",
     # config_name="tqc_cartpolecontinuous.yaml",
     # config_name="tqc_pendulum.yaml",
-    config_name="tqc_rocket_lander.yaml",
+    # config_name="tqc_rocket_lander.yaml",
+    config_name="tqc_lunar_lander_continuous.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

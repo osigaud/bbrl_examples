@@ -359,7 +359,7 @@ class SquashedGaussianTQCActor(Agent):
         self.action_dist = SquashedDiagGaussianDistribution(action_dim)
         # std must be positive
 
-    def dist(self, obs: torch.Tensor):
+    def get_distribution(self, obs: torch.Tensor):
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
         std_out = self.last_std_layer(backbone_output)
@@ -369,7 +369,7 @@ class SquashedGaussianTQCActor(Agent):
         return self.action_dist.make_distribution(mean, std)
 
     def forward(self, t, stochastic):
-        action_dist = self.dist(self.get(("env/env_obs", t)))
+        action_dist = self.get_distribution(self.get(("env/env_obs", t)))
         action = action_dist.sample() if stochastic else action_dist.mode()
 
         log_prob = action_dist.log_prob(action)
@@ -377,6 +377,6 @@ class SquashedGaussianTQCActor(Agent):
         self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic: bool):
-        action_dist = self.dist(obs)
+        action_dist = self.get_distribution(obs)
         action = action_dist.sample() if stochastic else action_dist.mode()
         return action
