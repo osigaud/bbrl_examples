@@ -38,6 +38,8 @@ from bbrl_examples.models.actors import TunableVarianceContinuousActor
 from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.critics import VAgent
 
+from bbrl.utils.chrono import Chrono
+
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
@@ -93,7 +95,7 @@ def setup_optimizer(cfg, action_agent, critic_agent):
     optimizer = get_class(cfg.optimizer)(parameters, **optimizer_args)
     return optimizer
 
-def compute_advantage_loss(cfg, reward, must_bootstrap, v_value):
+def compute_advantage(cfg, reward, must_bootstrap, v_value):
     # Compute temporal difference with GAE
     advantage = gae(
         v_value,
@@ -102,10 +104,12 @@ def compute_advantage_loss(cfg, reward, must_bootstrap, v_value):
         cfg.algorithm.discount_factor,
         cfg.algorithm.gae,
     )
-    # Compute critic loss
+    return advantage
+
+def compute_critic_loss(advantage):
     td_error = advantage**2
     critic_loss = td_error.mean()
-    return critic_loss, advantage
+    return critic_loss
 
 def compute_agent_loss(cfg, advantage, ratio, kl_loss):
     """Computes the PPO loss including KL regularization
@@ -114,12 +118,8 @@ def compute_agent_loss(cfg, advantage, ratio, kl_loss):
     return actor_loss
 
 
-def run_ppo_v1(cfg):
-    # 1)  Build the  logger
-    logger = Logger(cfg)
-    best_reward = -10e9
-
-    # 2) Create the environment agent
+def create_env_agents(cfg):
+    """ Create the environment agent """
     train_env_agent = AutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
@@ -133,6 +133,16 @@ def run_ppo_v1(cfg):
         cfg.algorithm.nb_evals,
         cfg.algorithm.seed,
     )
+    return train_env_agent, eval_env_agent
+
+def run_ppo_v1(cfg):
+    # 1)  Build the  logger
+    logger = Logger(cfg)
+    best_reward = -10e9
+    nb_steps = 0
+    tmp_steps = 0
+
+    train_env_agent, eval_env_agent = create_env_agents(cfg)
 
     (
         policy,
@@ -141,21 +151,19 @@ def run_ppo_v1(cfg):
         critic_agent,
         old_policy,
         old_critic_agent,
-        kl_agent
+        kl_agent,
     ) = create_ppo_agent(cfg, train_env_agent, eval_env_agent)
 
-    action_agent = TemporalAgent(policy)
-    old_train_agent = TemporalAgent(old_policy)
+    actor = TemporalAgent(policy)
+    old_actor= TemporalAgent(old_policy)
     train_workspace = Workspace()
 
     # Configure the optimizer
-    optimizer = setup_optimizer(cfg, train_agent, critic_agent)
-    nb_steps = 0
-    tmp_steps = 0
+    optimizer = setup_optimizer(cfg, policy, critic_agent)
 
     # Training loop
     for epoch in range(cfg.algorithm.max_epochs):
-        # Execute the agent in the workspace
+        # Execute the training agent in the workspace
 
         # Handles continuation
         delta_t = 0
@@ -171,13 +179,13 @@ def run_ppo_v1(cfg):
             n_steps=cfg.algorithm.n_steps - delta_t,
             stochastic=True,
             predict_proba=False,
-            compute_entropy=False
+            compute_entropy=True,
         )
-        old_train_agent(
+        old_actor(
             train_workspace,
             t=delta_t,
             n_steps=cfg.algorithm.n_steps - delta_t,
-            # Just computes the probability
+            # Just computes the probability to get the ratio of probabilities
             predict_proba=True,
         )
 
@@ -201,9 +209,9 @@ def run_ppo_v1(cfg):
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
+        # the critic values are clamped to move not too far away from the values of the previous critic
         with torch.no_grad():
             old_critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
-        # old_action_logp = transition_workspace["logprob_predict"].detach()
         old_v_value = transition_workspace["v_value"]
         if cfg.algorithm.clip_range_vf > 0:
             # Clip the difference between old and new values
@@ -214,27 +222,26 @@ def run_ppo_v1(cfg):
                 cfg.algorithm.clip_range_vf,
             )
 
-        critic_loss, advantage = compute_advantage_loss(
-            cfg, reward, must_bootstrap, v_value
-        )
+        # then we compute the advantage using the clamped critic values
+        advantage = compute_advantage(cfg, reward, must_bootstrap, v_value)
+
 
         # We store the advantage into the transition_workspace
-        advantage = advantage.detach().squeeze(0)
         transition_workspace.set("advantage", 0, advantage)
         transition_workspace.set("advantage", 1, torch.zeros_like(advantage))
+        # We rename logprob_predict data into old_action_logprobs
+        # We do so because we will rewrite in the logprob_predict variable in mini_batches
         transition_workspace.set_full("old_action_logprobs", transition_workspace["logprob_predict"].detach())
         transition_workspace.clear("logprob_predict")
 
+        # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
             if cfg.algorithm.minibatch_size > 0:
                 sample_workspace = transition_workspace.sample_subworkspace(1, cfg.algorithm.minibatch_size, 2)
             else:
                 sample_workspace = transition_workspace
 
-            if opt_epoch > 0:
-                critic_loss = 0.  # We don't want to optimize the critic after the first mini-epoch
-
-            action_agent(sample_workspace, t=0, n_steps=1, compute_entropy=True, predict_proba=True)
+            actor(sample_workspace, t=0, n_steps=1, compute_entropy=True, predict_proba=True)
 
             advantage, action_logp, old_action_logp, entropy = sample_workspace[
                 "advantage",
@@ -242,15 +249,16 @@ def run_ppo_v1(cfg):
                 "old_action_logprobs",
                 "entropy"
             ]
-            advantage = advantage[0]
+
+            critic_loss = compute_critic_loss(advantage)  # issue here, can be used only once
+            adv_actor = advantage.detach().squeeze(0)[0]
             act_diff = action_logp[0] - old_action_logp[0]
             ratios = act_diff.exp()
 
             kl_agent(sample_workspace, t=0, n_steps=1)
             kl = sample_workspace["kl"][0]
-
             actor_loss = compute_agent_loss(
-                cfg, advantage, ratios, kl
+                cfg, adv_actor, ratios, kl
             )
 
             # Entropy loss favor exploration
@@ -260,8 +268,10 @@ def run_ppo_v1(cfg):
             if opt_epoch == 0:
                 # Just for the first epoch
                 logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
+
+            loss_critic = cfg.algorithm.critic_coef * critic_loss
+
             loss = (
-                    cfg.algorithm.critic_coef * critic_loss
                     - cfg.algorithm.actor_coef * actor_loss
                     - cfg.algorithm.entropy_coef * entropy_loss
             )
@@ -270,7 +280,7 @@ def run_ppo_v1(cfg):
             old_critic_agent = copy.deepcopy(critic_agent)
 
             # [[remove]]
-            # Calculate approximate form of reverse KL Divergence for early stopping
+            # Compute approximate form of reverse KL Divergence for early stopping
             # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
             # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
             # and Schulman blog: http://joschu.net/blog/kl-approx.html
@@ -291,7 +301,9 @@ def run_ppo_v1(cfg):
                 break
             """
             # [[/remove]]
+
             optimizer.zero_grad()
+            loss_critic.backward()  # retain_graph=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 critic_agent.parameters(), cfg.algorithm.max_grad_norm
@@ -300,6 +312,7 @@ def run_ppo_v1(cfg):
                 train_agent.parameters(), cfg.algorithm.max_grad_norm
             )
             optimizer.step()
+
             # Evaluate if enough steps have been performed
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
@@ -320,7 +333,7 @@ def run_ppo_v1(cfg):
             print(f"nb_steps: {nb_steps}, reward: {mean}")
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
-                directory = f"./ppo_v1_agent/{cfg.gym_env.env_name}/"
+                directory = f"./ppo_agent/{cfg.gym_env.env_name}/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
                 filename = directory + "ppo_" + str(mean.item()) + ".agt"
@@ -341,20 +354,17 @@ def run_ppo_v1(cfg):
                         cfg.gym_env.env_name,
                         best_reward,
                     )
-# run_ppo(config_kl, compute_actor_loss=compute_kl_agent_loss, needs_kl=True, variant="kl-10")
-
-# %%
-# agent = load_agent(Path("ppo_agent") / config_kl.gym_env.env_name / "kl-10", "ppo_")
-# play(make_gym_env(config_kl.gym_env.env_name), agent)
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ppo_lunarlander.yaml",
+    config_name="ppo_lunarlander_continuous.yaml",
+    # config_name="ppo_lunarlander.yaml",
     # config_name="ppo_swimmer.yaml",
     # config_name="ppo_pendulum.yaml",
     # config_name="ppo_cartpole.yaml",
     version_base="1.1",
 )
+
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     torch.manual_seed(cfg.algorithm.seed)

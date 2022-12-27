@@ -113,7 +113,7 @@ def compute_critic_loss(advantage):
 def compute_clip_agent_loss(cfg, advantage, ratio):
     """Computes the PPO CLIP loss
     """
-    clip_range = cfg.clip_range
+    clip_range = cfg.algorithm.clip_range
 
     actor_loss_1 = advantage * ratio
     actor_loss_2 = advantage * torch.clamp(ratio, 1 - clip_range, 1 + clip_range)
@@ -256,9 +256,7 @@ def run_ppo_v2(cfg):
             act_diff = action_logp[0] - old_action_logp[0]
             ratios = act_diff.exp()
 
-            actor_loss = compute_clip_agent_loss(
-                cfg.algorithm, adv_actor, ratios
-            )
+            actor_loss = compute_clip_agent_loss(cfg, adv_actor, ratios)
 
             # Entropy loss favor exploration
             entropy_loss = torch.mean(entropy[0])
@@ -268,8 +266,9 @@ def run_ppo_v2(cfg):
                 # Just for the first epoch
                 logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
 
+            loss_critic = cfg.algorithm.critic_coef * critic_loss
+
             loss = (
-                    cfg.algorithm.critic_coef * critic_loss
                     - cfg.algorithm.actor_coef * actor_loss
                     - cfg.algorithm.entropy_coef * entropy_loss
             )
@@ -278,7 +277,7 @@ def run_ppo_v2(cfg):
             old_critic_agent = copy.deepcopy(critic_agent)
 
             # [[remove]]
-            # Calculate approximate form of reverse KL Divergence for early stopping
+            # Compute approximate form of reverse KL Divergence for early stopping
             # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
             # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
             # and Schulman blog: http://joschu.net/blog/kl-approx.html
@@ -301,6 +300,7 @@ def run_ppo_v2(cfg):
             # [[/remove]]
 
             optimizer.zero_grad()
+            loss_critic.backward()  # retain_graph=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 critic_agent.parameters(), cfg.algorithm.max_grad_norm
