@@ -94,7 +94,7 @@ def setup_optimizer(cfg, action_agent, critic_agent):
     optimizer = get_class(cfg.optimizer)(parameters, **optimizer_args)
     return optimizer
 
-def compute_advantage_loss(cfg, reward, must_bootstrap, v_value):
+def compute_advantage(cfg, reward, must_bootstrap, v_value):
     # Compute temporal difference with GAE
     advantage = gae(
         v_value,
@@ -103,10 +103,12 @@ def compute_advantage_loss(cfg, reward, must_bootstrap, v_value):
         cfg.algorithm.discount_factor,
         cfg.algorithm.gae,
     )
-    # Compute critic loss
+    return advantage
+
+def compute_critic_loss(advantage):
     td_error = advantage**2
     critic_loss = td_error.mean()
-    return critic_loss, advantage
+    return critic_loss
 
 def compute_clip_agent_loss(cfg, advantage, ratio):
     """Computes the PPO CLIP loss
@@ -210,7 +212,6 @@ def run_ppo_v2(cfg):
 
         with torch.no_grad():
             old_critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
-        # old_action_logp = transition_workspace["logprob_predict"].detach()
         old_v_value = transition_workspace["v_value"]
         if cfg.algorithm.clip_range_vf > 0:
             # Clip the difference between old and new values
@@ -221,14 +222,14 @@ def run_ppo_v2(cfg):
                 cfg.algorithm.clip_range_vf,
             )
 
-        critic_loss, advantage = compute_advantage_loss(
-            cfg, reward, must_bootstrap, v_value
-        )
+        advantage = compute_advantage(cfg, reward, must_bootstrap, v_value)
+
 
         # We store the advantage into the transition_workspace
-        advantage = advantage.detach().squeeze(0)
         transition_workspace.set("advantage", 0, advantage)
         transition_workspace.set("advantage", 1, torch.zeros_like(advantage))
+        # We rename logprob_predict data into old_action_logprobs
+        # We do so because we will rewrite in the logprob_predict variable in mini_batches
         transition_workspace.set_full("old_action_logprobs", transition_workspace["logprob_predict"].detach())
         transition_workspace.clear("logprob_predict")
 
@@ -238,9 +239,6 @@ def run_ppo_v2(cfg):
             else:
                 sample_workspace = transition_workspace
 
-            if opt_epoch > 0:
-                critic_loss = 0.  # We don't want to optimize the critic after the first mini-epoch
-
             actor(sample_workspace, t=0, n_steps=1, compute_entropy=True, predict_proba=True)
 
             advantage, action_logp, old_action_logp, entropy = sample_workspace[
@@ -249,7 +247,9 @@ def run_ppo_v2(cfg):
                 "old_action_logprobs",
                 "entropy"
             ]
-            advantage = advantage[0]
+
+            critic_loss = compute_critic_loss(advantage)
+            advantage = advantage.detach().squeeze(0)[0]
             act_diff = action_logp[0] - old_action_logp[0]
             ratios = act_diff.exp()
 
