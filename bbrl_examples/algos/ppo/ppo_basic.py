@@ -11,7 +11,7 @@ import hydra
 from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
-from bbrl.agents import Agents, TemporalAgent, PrintAgent
+from bbrl.agents import Agents, TemporalAgent
 
 from bbrl.utils.functionalb import gae
 
@@ -21,8 +21,9 @@ from bbrl.visu.visu_critics import plot_critic
 from bbrl_examples.models.critics import VAgent
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
 from bbrl_examples.models.actors import DiscreteActor
-from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger
+
+from bbrl_examples.models.envs import create_env_agents
 
 # HYDRA_FULL_ERROR = 1
 
@@ -101,18 +102,7 @@ def run_ppo(cfg):
     best_reward = -10e9
 
     # 2) Create the environment agent
-    train_env_agent = AutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
-        cfg.algorithm.seed,
-    )
-    eval_env_agent = NoAutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.nb_evals,
-        cfg.algorithm.seed,
-    )
+    train_env_agent, eval_env_agent = create_env_agents(cfg)
 
     (
         train_agent,
@@ -285,7 +275,7 @@ def run_ppo(cfg):
                 eval_agent.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(
-                        train_agent.agent.agents[1],
+                        eval_agent.agent.agents[1],
                         eval_env_agent,
                         "./ppo_plots/",
                         cfg.gym_env.env_name,

@@ -18,11 +18,11 @@ from bbrl.agents import Agents, TemporalAgent, PrintAgent
 from bbrl_examples.models.loggers import Logger
 from bbrl.utils.replay_buffer import ReplayBuffer
 
-from bbrl_examples.models.actors import SquashedGaussianTQCActor
+from bbrl_examples.models.actors import SquashedGaussianActor
 from bbrl_examples.models.critics import TruncatedQuantileNetwork
 
 from bbrl_examples.models.shared_models import soft_update_params
-from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
+from bbrl_examples.models.envs import create_env_agents
 
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
@@ -42,7 +42,7 @@ def create_tqc_agent(cfg, train_env_agent, eval_env_agent):
     ), "TQC code dedicated to continuous actions"
 
     # Actor
-    actor = SquashedGaussianTQCActor(
+    actor = SquashedGaussianActor(
         obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
     )
 
@@ -174,7 +174,6 @@ def compute_actor_loss(ent_coef, t_actor, q_agent, rb_workspace):
 
     return actor_loss.mean()
 
-
 def run_tqc(cfg):
     # 1)  Build the  logger
     logger = Logger(cfg)
@@ -182,18 +181,7 @@ def run_tqc(cfg):
     ent_coef = cfg.algorithm.entropy_coef
 
     # 2) Create the environment agent
-    train_env_agent = AutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
-        cfg.algorithm.seed,
-    )
-    eval_env_agent = NoAutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.nb_evals,
-        cfg.algorithm.seed,
-    )
+    train_env_agent, eval_env_agent = create_env_agents(cfg)
 
     # 3) Create the A2C Agent
     (
@@ -332,7 +320,6 @@ def run_tqc(cfg):
             logger.add_log("reward/min", rewards.median(), nb_steps)
 
             print(f"nb_steps: {nb_steps}, reward: {mean}")
-            # print("ent_coef", ent_coef)
             if cfg.save_best and mean > best_reward:
                 best_reward = mean
                 directory = f"./agents/{cfg.gym_env.env_name}/tqc_agent/"
@@ -340,7 +327,24 @@ def run_tqc(cfg):
                     os.makedirs(directory)
                 filename = directory + cfg.gym_env.env_name + "#tqc#team" + str(mean.item()) + ".agt"
                 actor.save_model(filename)
-
+                """ Not ready for visualizing quantile policies and critic
+                if False:  # cfg.plot_agents:
+                    plot_policy(
+                        eval_agent.agent.agents[1],
+                        eval_env_agent,
+                        "./ppo_plots/",
+                        cfg.gym_env.env_name,
+                        best_reward,
+                        stochastic=False,
+                    )
+                    plot_critic(
+                        q_agent.agent,
+                        eval_env_agent,
+                        "./ppo_plots/",
+                        cfg.gym_env.env_name,
+                        best_reward,
+                    )
+                """
 
 @hydra.main(
     config_path="./configs/",

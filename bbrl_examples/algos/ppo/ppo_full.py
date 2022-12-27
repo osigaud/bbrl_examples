@@ -19,7 +19,7 @@ from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
 from bbrl.agents import Agents, TemporalAgent
-from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
+from bbrl_examples.models.envs import create_env_agents
 
 from bbrl_examples.models.critics import VAgent
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
@@ -120,18 +120,7 @@ def run_ppo(cfg, needs_kl=False):
     best_reward = -10e9
 
     # 2) Create the environment agent
-    train_env_agent = AutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
-        cfg.algorithm.seed,
-    )
-    eval_env_agent = NoAutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.nb_evals,
-        cfg.algorithm.seed,
-    )
+    train_env_agent, eval_env_agent = create_env_agents(cfg)
 
     (
         policy,

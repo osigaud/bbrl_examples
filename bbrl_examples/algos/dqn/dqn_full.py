@@ -21,7 +21,7 @@ from bbrl.visu.visu_critics import plot_critic
 
 from bbrl_examples.models.exploration_agents import EGreedyActionSelector
 from bbrl_examples.models.critics import DiscreteQAgent
-from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
+from bbrl_examples.models.envs import create_env_agents
 from bbrl_examples.models.loggers import Logger, RewardLogger
 from bbrl_examples.models.plotters import Plotter
 from bbrl.utils.chrono import Chrono
@@ -82,18 +82,7 @@ def run_dqn_full(cfg, reward_logger):
     best_reward = -10e9
 
     # 2) Create the environment agent
-    train_env_agent = AutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
-        cfg.algorithm.seed,
-    )
-    eval_env_agent = NoAutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.nb_evals,
-        cfg.algorithm.seed,
-    )
+    train_env_agent, eval_env_agent = create_env_agents(cfg)
 
     # 3) Create the DQN-like Agent
     train_agent, eval_agent, q_agent, target_q_agent = create_dqn_agent(

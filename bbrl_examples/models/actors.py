@@ -308,59 +308,6 @@ class ConstantVarianceContinuousActor(BaseActor):
         return action
 
 
-class SquashedGaussianActor(BaseActor):
-    def __init__(self, state_dim, hidden_layers, action_dim):
-        super().__init__()
-        backbone_dim = [state_dim] + list(hidden_layers)
-        self.layers = build_backbone(backbone_dim, activation=nn.Tanh())
-        self.backbone = nn.Sequential(*self.layers)
-        self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
-        self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
-        self.action_dist = SquashedDiagGaussianDistribution(action_dim)
-
-    def forward(self, t, stochastic=False, predict_proba=False, **kwargs):
-        obs = self.get(("env/env_obs", t))
-        backbone_output = self.backbone(obs)
-        mean = self.last_mean_layer(backbone_output)
-        std_out = self.last_std_layer(backbone_output)
-        std = torch.exp(std_out)
-        action_dist = self.action_dist.make_distribution(mean, std)
-        if predict_proba:
-            action = self.get(("action", t))
-            log_prob = action_dist.log_prob(action)
-            self.set(("logprob_predict", t), log_prob)
-        else:
-            if stochastic:
-                action = action_dist.sample()
-            else:
-                action = mean
-            log_prob = action_dist.log_prob(action)
-            self.set(("action", t), action)
-            self.set(("action_logprobs", t), log_prob)
-
-    def predict_action(self, obs, stochastic=False):
-        """Predict just one action (without using the workspace)"""
-        backbone_output = self.backbone(obs)
-        mean = self.last_mean_layer(backbone_output)
-        std_out = self.last_std_layer(backbone_output)
-        std = torch.exp(std_out)
-        action_dist = self.action_dist.make_distribution(mean, std)
-        if stochastic:
-            action = action_dist.sample()
-        else:
-            action = mean
-        return action
-
-    def test(self, obs, action):
-        backbone_output = self.backbone(obs)
-        mean = self.last_mean_layer(backbone_output)
-        std_out = self.last_std_layer(backbone_output)
-        std = torch.exp(std_out)
-        action_dist = self.action_dist.make_distribution(mean, std)
-        log_prob = action_dist.log_prob(action)
-        return log_prob
-
-
 class ContinuousDeterministicActor(BaseActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
@@ -400,7 +347,7 @@ class ActorAgent(Agent):
         self.set(("action", t), action)
 
 
-class SquashedGaussianTQCActor(BaseActor):
+class SquashedGaussianActor(BaseActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
@@ -419,15 +366,26 @@ class SquashedGaussianTQCActor(BaseActor):
         std = torch.exp(std_out)
         return self.action_dist.make_distribution(mean, std)
 
-    def forward(self, t, stochastic, **kwargs):
+    def forward(self, t, stochastic=False, predict_proba=False, **kwargs):
         action_dist = self.get_distribution(self.get(("env/env_obs", t)))
-        action = action_dist.sample() if stochastic else action_dist.mode()
+        if predict_proba:
+            action = self.get(("action", t))
+            log_prob = action_dist.log_prob(action)
+            self.set(("logprob_predict", t), log_prob)
+        else:
+            if stochastic:
+                action = action_dist.sample()
+            else:
+                action = action_dist.mode()
+            log_prob = action_dist.log_prob(action)
+            self.set(("action", t), action)
+            self.set(("action_logprobs", t), log_prob)
 
-        log_prob = action_dist.log_prob(action)
-        self.set((f"action", t), action)
-        self.set(("action_logprobs", t), log_prob)
-
-    def predict_action(self, obs, stochastic: bool):
+    def predict_action(self, obs, stochastic=False):
         """Predict just one action (without using the workspace)"""
         action_dist = self.get_distribution(obs)
         return action_dist.sample() if stochastic else action_dist.mode()
+
+    def test(self, obs, action):
+        action_dist = self.get_distribution(obs)
+        return action_dist.log_prob(action)

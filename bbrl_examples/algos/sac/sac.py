@@ -13,7 +13,7 @@ from bbrl.utils.chrono import Chrono
 
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
-from bbrl.agents import Agents, TemporalAgent, PrintAgent
+from bbrl.agents import Agents, TemporalAgent
 
 from bbrl_examples.models.loggers import Logger
 from bbrl.utils.replay_buffer import ReplayBuffer
@@ -24,7 +24,7 @@ from bbrl_examples.models.actors import (
 )
 from bbrl_examples.models.critics import ContinuousQAgent
 from bbrl_examples.models.shared_models import soft_update_params
-from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
+from bbrl_examples.models.envs import create_env_agents
 
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
@@ -180,18 +180,7 @@ def run_sac(cfg):
     ent_coef = cfg.algorithm.entropy_coef
 
     # 2) Create the environment agent
-    train_env_agent = AutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
-        cfg.algorithm.seed,
-    )
-    eval_env_agent = NoAutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.nb_evals,
-        cfg.algorithm.seed,
-    )
+    train_env_agent, eval_env_agent = create_env_agents(cfg)
 
     # 3) Create the A2C Agent
     (
@@ -360,7 +349,7 @@ def run_sac(cfg):
                 directory = "./sac_agent/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "sac_" + str(mean.item()) + ".agt"
+                filename = directory + cfg.gym_env.env_name + "#sac#team#" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(

@@ -29,7 +29,7 @@ from bbrl.agents import Agents, TemporalAgent
 # ’env/env_obs’, ’env/reward’, ’env/timestep’, ’env/done’, ’env/initial_state’, ’env/cumulated_reward’,
 # ... When called at timestep t=0, then the environments are automatically reset.
 # At timestep t>0, these agents will read the ’action’ variable in the workspace at time t − 1
-from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
+from bbrl_examples.models.envs import create_env_agents
 
 # Allow to display the behavior of an agent
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
@@ -43,22 +43,6 @@ from bbrl.visu.visu_critics import plot_critic
 
 def make_gym_env(env_name):
     return gym.make(env_name)
-
-def get_env_agents(cfg):
-    train_env_agent = AutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
-        cfg.algorithm.seed,
-    )
-    eval_env_agent = NoAutoResetGymAgent(
-    get_class(cfg.gym_env),
-    get_arguments(cfg.gym_env),
-    cfg.algorithm.nb_evals,
-    cfg.algorithm.seed,
-    )
-    return train_env_agent, eval_env_agent
-
 
 def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
@@ -119,23 +103,6 @@ def compute_clip_agent_loss(cfg, advantage, ratio):
     actor_loss_2 = advantage * torch.clamp(ratio, 1 - clip_range, 1 + clip_range)
     actor_loss = torch.minimum(actor_loss_1, actor_loss_2).mean()
     return actor_loss
-
-def create_env_agents(cfg):
-    """ Create the environment agent """
-    train_env_agent = AutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
-        cfg.algorithm.seed,
-    )
-
-    eval_env_agent = NoAutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.nb_evals,
-        cfg.algorithm.seed,
-    )
-    return train_env_agent, eval_env_agent
 
 def run_ppo_v2(cfg):
     # 1)  Build the  logger
@@ -337,7 +304,7 @@ def run_ppo_v2(cfg):
                 policy.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(
-                        train_agent.agent.agents[1],
+                        eval_agent.agent.agents[1],
                         eval_env_agent,
                         "./ppo_plots/",
                         cfg.gym_env.env_name,

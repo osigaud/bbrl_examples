@@ -22,3 +22,20 @@ class NoAutoResetEnvAgent(NoAutoResetGymAgent):
         self.observation_space = env.observation_space
         self.action_space = env.action_space
         del env
+
+def create_env_agents(cfg):
+    """ Create the environment agent """
+    train_env_agent = AutoResetGymAgent(
+        get_class(cfg.gym_env),
+        get_arguments(cfg.gym_env),
+        cfg.algorithm.n_envs,
+        cfg.algorithm.seed,
+    )
+
+    eval_env_agent = NoAutoResetGymAgent(
+        get_class(cfg.gym_env),
+        get_arguments(cfg.gym_env),
+        cfg.algorithm.nb_evals,
+        cfg.algorithm.seed,
+    )
+    return train_env_agent, eval_env_agent
