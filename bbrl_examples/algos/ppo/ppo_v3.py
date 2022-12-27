@@ -210,6 +210,7 @@ def run_ppo_v2(cfg):
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
+        # the critic values are clamped to move not too far away from the values of the previous critic
         with torch.no_grad():
             old_critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
         old_v_value = transition_workspace["v_value"]
@@ -222,6 +223,7 @@ def run_ppo_v2(cfg):
                 cfg.algorithm.clip_range_vf,
             )
 
+        # then we compute the advantage using the clamped critic values
         advantage = compute_advantage(cfg, reward, must_bootstrap, v_value)
 
 
@@ -233,6 +235,7 @@ def run_ppo_v2(cfg):
         transition_workspace.set_full("old_action_logprobs", transition_workspace["logprob_predict"].detach())
         transition_workspace.clear("logprob_predict")
 
+        # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
             if cfg.algorithm.minibatch_size > 0:
                 sample_workspace = transition_workspace.sample_subworkspace(1, cfg.algorithm.minibatch_size, 2)
@@ -248,13 +251,13 @@ def run_ppo_v2(cfg):
                 "entropy"
             ]
 
-            critic_loss = compute_critic_loss(advantage)
-            advantage = advantage.detach().squeeze(0)[0]
+            critic_loss = compute_critic_loss(advantage)  # issue here, can be used only once
+            adv_actor = advantage.detach().squeeze(0)[0]
             act_diff = action_logp[0] - old_action_logp[0]
             ratios = act_diff.exp()
 
             actor_loss = compute_clip_agent_loss(
-                cfg.algorithm, advantage, ratios
+                cfg.algorithm, adv_actor, ratios
             )
 
             # Entropy loss favor exploration
