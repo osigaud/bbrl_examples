@@ -333,7 +333,7 @@ def run_ppo_v2(cfg):
                 directory = f"./ppo_agent/{cfg.gym_env.env_name}/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "ppo_" + str(mean.item()) + ".agt"
+                filename = directory + cfg.gym_env.env_name + "#ppo_clip#team#" + str(mean.item()) + ".agt"
                 policy.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(

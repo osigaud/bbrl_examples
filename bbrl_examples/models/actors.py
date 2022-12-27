@@ -22,7 +22,7 @@ class ProbAgent(Agent):
     def __init__(self, state_dim, hidden_layers, n_action):
         super().__init__(name="prob_agent")
         self.model = build_mlp(
-            [state_dim] + list(hidden_layers) + [n_action], activation=nn.ReLU()
+            [state_dim] + list(hidden_layers) + [n_action], activation=nn.Tanh()
         )
 
     def forward(self, t, **kwargs):
@@ -312,7 +312,7 @@ class SquashedGaussianActor(BaseActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
-        self.layers = build_backbone(backbone_dim, activation=nn.ReLU())
+        self.layers = build_backbone(backbone_dim, activation=nn.Tanh())
         self.backbone = nn.Sequential(*self.layers)
         self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
@@ -366,7 +366,7 @@ class ContinuousDeterministicActor(BaseActor):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(
-            layers, activation=nn.ReLU(), output_activation=nn.Tanh()
+            layers, activation=nn.Tanh(), output_activation=nn.Tanh()
         )
 
     def forward(self, t):
@@ -404,7 +404,7 @@ class SquashedGaussianTQCActor(BaseActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
-        self.layers = build_backbone(backbone_dim, activation=nn.ReLU())
+        self.layers = build_backbone(backbone_dim, activation=nn.Tanh())
         self.backbone = nn.Sequential(*self.layers)
         self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
@@ -419,7 +419,7 @@ class SquashedGaussianTQCActor(BaseActor):
         std = torch.exp(std_out)
         return self.action_dist.make_distribution(mean, std)
 
-    def forward(self, t, stochastic):
+    def forward(self, t, stochastic, **kwargs):
         action_dist = self.get_distribution(self.get(("env/env_obs", t)))
         action = action_dist.sample() if stochastic else action_dist.mode()
 

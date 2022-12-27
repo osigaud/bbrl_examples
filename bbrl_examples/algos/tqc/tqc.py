@@ -338,7 +338,7 @@ def run_tqc(cfg):
                 directory = f"./agents/{cfg.gym_env.env_name}/tqc_agent/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "tqc_" + str(mean.item()) + ".agt"
+                filename = directory + cfg.gym_env.env_name + "#tqc#team" + str(mean.item()) + ".agt"
                 actor.save_model(filename)
 
 
@@ -346,8 +346,8 @@ def run_tqc(cfg):
     config_path="./configs/",
     # config_name="tqc_cartpolecontinuous.yaml",
     # config_name="tqc_pendulum.yaml",
-    # config_name="tqc_rocket_lander.yaml",
-    config_name="tqc_lunar_lander_continuous.yaml",
+    config_name="tqc_rocket_lander.yaml",
+    # config_name="tqc_lunar_lander_continuous.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

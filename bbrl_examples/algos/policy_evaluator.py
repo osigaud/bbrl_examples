@@ -50,6 +50,7 @@ def evaluate_agent(filename, env_name):
             stop_variable="env/done",
             stochastic=False,
             # predict_proba=False,
+            render=True,
         )
         rewards = eval_workspace["env/cumulated_reward"][-1]
         means[i] = rewards.mean()

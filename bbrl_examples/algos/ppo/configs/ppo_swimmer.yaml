@@ -29,7 +29,7 @@
 
       gym_env:
             classname: __main__.make_gym_env
-            env_name: Swimmer-v2
+            env_name: Swimmer-v3
 
       optimizer:
             classname: torch.optim.Adam

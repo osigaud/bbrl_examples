@@ -336,7 +336,7 @@ def run_ppo_v1(cfg):
                 directory = f"./ppo_agent/{cfg.gym_env.env_name}/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "ppo_" + str(mean.item()) + ".agt"
+                filename = directory + cfg.gym_env.env_name + "#ppo_kl#team#" + str(mean.item()) + ".agt"
                 policy.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(
@@ -357,9 +357,9 @@ def run_ppo_v1(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ppo_lunarlander_continuous.yaml",
+    # config_name="ppo_lunarlander_continuous.yaml",
     # config_name="ppo_lunarlander.yaml",
-    # config_name="ppo_swimmer.yaml",
+    config_name="ppo_swimmer.yaml",
     # config_name="ppo_pendulum.yaml",
     # config_name="ppo_cartpole.yaml",
     version_base="1.1",

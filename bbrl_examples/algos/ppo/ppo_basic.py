@@ -281,7 +281,7 @@ def run_ppo(cfg):
                 directory = "./ppo_agent/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + "ppo_" + str(mean.item()) + ".agt"
+                filename = directory + cfg.gym_env.env_name + "#ppo_basic#team#" + str(mean.item()) + ".agt"
                 eval_agent.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(
