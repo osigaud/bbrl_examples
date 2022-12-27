@@ -21,7 +21,7 @@ from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.critics import VAgent
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger
-from bbrl_examples.wrappers.wrappers import RocketLanderWrapper
+from bbrl_examples.wrappers.env_wrappers import RocketLanderWrapper
 from bbrl.utils.chrono import Chrono
 
 from bbrl.visu.visu_policies import plot_policy

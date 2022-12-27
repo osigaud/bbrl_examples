@@ -1,3 +1,5 @@
+from abc import ABC
+
 import torch
 import torch.nn as nn
 from torch.distributions.normal import Normal
@@ -7,6 +9,14 @@ from bbrl_examples.models.shared_models import build_mlp, build_backbone
 from bbrl.utils.distributions import SquashedDiagGaussianDistribution
 from bbrl.agents.agent import Agent
 
+
+class BaseActor(Agent, ABC):
+    """ Generic class to centralize copy_parameters"""
+
+    def copy_parameters(self, other):
+        """Copy parameters from other agent"""
+        for self_p, other_p in zip(self.parameters(), other.parameters()):
+            self_p.data.copy_(other_p)
 
 class ProbAgent(Agent):
     def __init__(self, state_dim, hidden_layers, n_action):
@@ -39,17 +49,12 @@ class ActionAgent(Agent):
         self.set(("action", t), action)
 
 
-class DiscreteActor(Agent):
+class DiscreteActor(BaseActor):
     def __init__(self, state_dim, hidden_size, n_actions):
         super().__init__()
         self.model = build_mlp(
             [state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU()
         )
-
-    def copy_parameters(self, other):
-        """Copy parameters from other agent"""
-        for self_p, other_p in zip(self.parameters(), other.parameters()):
-            self_p.data.copy_(other_p)
 
     def get_distribution(self, obs):
         scores = self.model(obs)
@@ -136,7 +141,7 @@ class BernoulliActor(Agent):
 # All the actors below use a Gaussian policy, that is the output is Normal distribution
 
 
-class TunableVarianceContinuousActor(Agent):
+class TunableVarianceContinuousActor(BaseActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
@@ -173,33 +178,78 @@ class TunableVarianceContinuousActor(Agent):
             self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic=False):
-        mean = self.model(obs)
-        dist = Normal(mean, self.soft_plus(self.std_param))
+        """Predict just one action (without using the workspace)"""
         if stochastic:
-            action = dist.sample()
+            mean = self.model(obs)
+            dist = Normal(mean, self.soft_plus(self.std_param))
+            return dist.sample()
         else:
-            action = mean
-        return action
+            return self.model(obs)
 
 
-class StateDependentVarianceContinuousActor(Agent):
+class TunableVarianceContinuousActorExp(BaseActor):
+    def __init__(self, state_dim, hidden_layers, action_dim):
+        super().__init__()
+        layers = [state_dim] + list(hidden_layers) + [action_dim]
+        self.model = build_mlp(layers, activation=nn.Tanh())
+        self.std_param = nn.parameter.Parameter(torch.randn(1, action_dim))
+
+    def get_distribution(self, obs: torch.Tensor):
+        mean = self.model(obs)
+        std = torch.clamp(self.std_param, -20, 2)
+        return Independent(Normal(mean, torch.exp(std)), 1)
+
+    def forward(
+            self,
+            t,
+            *,
+            stochastic=True,
+            predict_proba=False,
+            compute_entropy=False,
+            **kwargs,
+    ):
+        obs = self.get(("env/env_obs", t))
+        dist = self.get_distribution(obs)
+
+        if predict_proba:
+            action = self.get(("action", t))
+            self.set(("logprob_predict", t), dist.log_prob(action))
+        else:
+            action = dist.sample() if stochastic else dist.mean
+            logp_pi = dist.log_prob(action)
+
+            self.set(("action", t), action)
+            self.set(("action_logprobs", t), logp_pi)
+
+        if compute_entropy:
+            self.set(("entropy", t), dist.entropy())
+
+    def predict_action(self, obs, stochastic):
+        """Predict just one action (without using the workspace)"""
+        if stochastic:
+            mean = self.model(obs)
+            dist = Normal(mean, self.soft_plus(self.std_param))
+            return dist.sample()
+        else:
+            return self.model(obs)
+
+
+class StateDependentVarianceContinuousActor(BaseActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
-        self.layers = build_backbone(backbone_dim, activation=nn.ReLU())
+        self.layers = build_backbone(backbone_dim, activation=nn.Tanh())
         self.backbone = nn.Sequential(*self.layers)
 
         self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
-        # std must be positive
-        self.std_layer = nn.Softplus()
 
     def forward(self, t, stochastic=False, **kwargs):
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
         std_out = self.last_std_layer(backbone_output)
-        std = self.std_layer(std_out)
+        std = torch.exp(std_out)
         assert not torch.any(torch.isnan(mean)), "Nan Here"
         dist = Normal(mean, std)
         self.set(("entropy", t), dist.entropy())
@@ -213,10 +263,11 @@ class StateDependentVarianceContinuousActor(Agent):
         self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic=False):
+        """Predict just one action (without using the workspace)"""
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
         std_out = self.last_std_layer(backbone_output)
-        std = self.std_layer(std_out)
+        std = torch.exp(std_out)
         assert not torch.any(torch.isnan(mean)), "Nan Here"
         dist = Normal(mean, std)
         if stochastic:
@@ -226,11 +277,11 @@ class StateDependentVarianceContinuousActor(Agent):
         return action
 
 
-class ConstantVarianceContinuousActor(Agent):
+class ConstantVarianceContinuousActor(BaseActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
-        self.model = build_mlp(layers, activation=nn.ReLU())
+        self.model = build_mlp(layers, activation=nn.Tanh())
         self.std_param = 2
 
     def forward(self, t, stochastic=False, **kwargs):
@@ -247,6 +298,7 @@ class ConstantVarianceContinuousActor(Agent):
         self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic=False):
+        """Predict just one action (without using the workspace)"""
         mean = self.model(obs)
         dist = Normal(mean, self.std_param)
         if stochastic:
@@ -256,7 +308,7 @@ class ConstantVarianceContinuousActor(Agent):
         return action
 
 
-class SquashedGaussianActor(Agent):
+class SquashedGaussianActor(BaseActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
@@ -265,15 +317,13 @@ class SquashedGaussianActor(Agent):
         self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.action_dist = SquashedDiagGaussianDistribution(action_dim)
-        # std must be positive
-        self.std_layer = nn.Softplus()
 
     def forward(self, t, stochastic=False, predict_proba=False, **kwargs):
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
         std_out = self.last_std_layer(backbone_output)
-        std = self.std_layer(std_out)
+        std = torch.exp(std_out)
         action_dist = self.action_dist.make_distribution(mean, std)
         if predict_proba:
             action = self.get(("action", t))
@@ -289,10 +339,11 @@ class SquashedGaussianActor(Agent):
             self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic=False):
+        """Predict just one action (without using the workspace)"""
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
         std_out = self.last_std_layer(backbone_output)
-        std = self.std_layer(std_out)
+        std = torch.exp(std_out)
         action_dist = self.action_dist.make_distribution(mean, std)
         if stochastic:
             action = action_dist.sample()
@@ -304,13 +355,13 @@ class SquashedGaussianActor(Agent):
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
         std_out = self.last_std_layer(backbone_output)
-        std = self.std_layer(std_out)
+        std = torch.exp(std_out)
         action_dist = self.action_dist.make_distribution(mean, std)
         log_prob = action_dist.log_prob(action)
         return log_prob
 
 
-class ContinuousDeterministicActor(Agent):
+class ContinuousDeterministicActor(BaseActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
@@ -324,6 +375,7 @@ class ContinuousDeterministicActor(Agent):
         self.set(("action", t), action)
 
     def predict_action(self, obs, stochastic=False):
+        """Predict just one action (without using the workspace)"""
         assert (
             not stochastic
         ), "ContinuousDeterministicActor cannot provide stochastic predictions"
@@ -348,7 +400,7 @@ class ActorAgent(Agent):
         self.set(("action", t), action)
 
 
-class SquashedGaussianTQCActor(Agent):
+class SquashedGaussianTQCActor(BaseActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
@@ -357,7 +409,6 @@ class SquashedGaussianTQCActor(Agent):
         self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.action_dist = SquashedDiagGaussianDistribution(action_dim)
-        # std must be positive
 
     def get_distribution(self, obs: torch.Tensor):
         backbone_output = self.backbone(obs)
@@ -365,7 +416,7 @@ class SquashedGaussianTQCActor(Agent):
         std_out = self.last_std_layer(backbone_output)
 
         std_out = std_out.clamp(-20, 2)  # as in the official code
-        std = torch.exp(std_out)  # A softplus could work
+        std = torch.exp(std_out)
         return self.action_dist.make_distribution(mean, std)
 
     def forward(self, t, stochastic):
@@ -377,6 +428,6 @@ class SquashedGaussianTQCActor(Agent):
         self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic: bool):
+        """Predict just one action (without using the workspace)"""
         action_dist = self.get_distribution(obs)
-        action = action_dist.sample() if stochastic else action_dist.mode()
-        return action
+        return action_dist.sample() if stochastic else action_dist.mode()

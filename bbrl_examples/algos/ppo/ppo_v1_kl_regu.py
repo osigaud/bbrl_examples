@@ -110,8 +110,7 @@ def compute_advantage_loss(cfg, reward, must_bootstrap, v_value):
 def compute_agent_loss(cfg, advantage, ratio, kl_loss):
     """Computes the PPO loss including KL regularization
     """
-    actor_loss = advantage * ratio - cfg.algorithm.beta * kl_loss
-    print(kl_loss)
+    actor_loss = (advantage * ratio - cfg.algorithm.beta * kl_loss).mean()
     return actor_loss
 
 
@@ -261,7 +260,6 @@ def run_ppo_v1(cfg):
             if opt_epoch == 0:
                 # Just for the first epoch
                 logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
-
             loss = (
                     cfg.algorithm.critic_coef * critic_loss
                     - cfg.algorithm.actor_coef * actor_loss
@@ -293,7 +291,6 @@ def run_ppo_v1(cfg):
                 break
             """
             # [[/remove]]
-
             optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(
@@ -303,7 +300,6 @@ def run_ppo_v1(cfg):
                 train_agent.parameters(), cfg.algorithm.max_grad_norm
             )
             optimizer.step()
-
             # Evaluate if enough steps have been performed
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps

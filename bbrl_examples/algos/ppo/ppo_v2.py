@@ -32,7 +32,7 @@ from bbrl.agents import Agents, TemporalAgent
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 
 # Allow to display the behavior of an agent
-from bbrl_examples.models.actors import TunableVarianceContinuousActor
+from bbrl_examples.models.actors import TunableVarianceContinuousActorExp
 from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.critics import VAgent
 
@@ -62,7 +62,7 @@ def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
 
     if train_env_agent.is_continuous_action():
-        policy = TunableVarianceContinuousActor(
+        policy = TunableVarianceContinuousActorExp(
             obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
         )
     else:
@@ -174,7 +174,7 @@ def run_ppo_v2(cfg):
             n_steps=cfg.algorithm.n_steps - delta_t,
             stochastic=True,
             predict_proba=False,
-            compute_entropy=False
+            compute_entropy=True
         )
         old_train_agent(
             train_workspace,
@@ -345,16 +345,10 @@ def run_ppo_v2(cfg):
                         best_reward,
                     )
 
-
-# run_ppo(config_kl, compute_actor_loss=compute_kl_agent_loss, needs_kl=True, variant="kl-10")
-
-# %%
-# agent = load_agent(Path("ppo_agent") / config_kl.gym_env.env_name / "kl-10", "ppo_")
-# play(make_gym_env(config_kl.gym_env.env_name), agent)
-
 @hydra.main(
     config_path="./configs/",
-    config_name="ppo_lunarlander.yaml",
+    config_name="ppo_lunarlander_continuous.yaml",
+    # config_name="ppo_lunarlander.yaml",
     # config_name="ppo_swimmer.yaml",
     # config_name="ppo_pendulum.yaml",
     # config_name="ppo_cartpole.yaml",

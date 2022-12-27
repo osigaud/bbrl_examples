@@ -7,7 +7,6 @@ class Logger:
         self.logger = instantiate_class(cfg.logger)
 
     def add_log(self, log_string, loss, epoch):
-        print(loss)
         self.logger.add_scalar(log_string, loss.item(), epoch)
 
     # Log losses

@@ -141,6 +141,7 @@ def run_ppo(cfg):
                 n_steps=cfg.algorithm.n_steps - 1,
                 stochastic=True,
                 predict_proba=False,
+                compute_entropy=True,
             )
             old_train_agent(
                 train_workspace,
@@ -148,6 +149,7 @@ def run_ppo(cfg):
                 n_steps=cfg.algorithm.n_steps - 1,
                 stochastic=True,
                 predict_proba=True,
+                compute_entropy=True,
             )
         else:
             train_agent(
@@ -156,6 +158,7 @@ def run_ppo(cfg):
                 n_steps=cfg.algorithm.n_steps,
                 stochastic=True,
                 predict_proba=False,
+                compute_entropy=True,
             )
             old_train_agent(
                 train_workspace,
@@ -163,6 +166,7 @@ def run_ppo(cfg):
                 n_steps=cfg.algorithm.n_steps,
                 stochastic=True,
                 predict_proba=True,
+                compute_entropy=True,
             )
 
         # Compute the critic value over the whole workspace
@@ -299,7 +303,7 @@ def run_ppo(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ppo_lunarlander.yaml",
+    config_name="ppo_lunarlander_continuous.yaml",
     # config_name="ppo_swimmer.yaml",
     # config_name="ppo_pendulum.yaml",
     # config_name="ppo_cartpole.yaml",

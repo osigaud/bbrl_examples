@@ -10,7 +10,7 @@ import torch.nn as nn
 import gym
 import bbrl_gym
 
-from bbrl_examples.wrappers.wrappers import MazeMDPContinuousWrapper
+from bbrl_examples.wrappers.env_wrappers import MazeMDPContinuousWrapper
 
 import hydra
 from omegaconf import DictConfig

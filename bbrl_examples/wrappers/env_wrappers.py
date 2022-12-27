@@ -66,7 +66,7 @@ class MazeMDPContinuousWrapper(gym.Wrapper):
         )
         self.observation_space = gym.spaces.Box(low, high)
 
-    def is_continuous_state():
+    def is_continuous_state(self):
         # By contrast with the wrapped environment where the state space is discrete
         return True
 
