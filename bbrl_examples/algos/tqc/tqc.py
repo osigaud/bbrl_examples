@@ -348,9 +348,9 @@ def run_tqc(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    # config_name="tqc_cartpolecontinuous.yaml",
+    config_name="tqc_cartpolecontinuous.yaml",
     # config_name="tqc_pendulum.yaml",
-    config_name="tqc_rocket_lander.yaml",
+    # config_name="tqc_rocket_lander.yaml",
     # config_name="tqc_lunar_lander_continuous.yaml",
     version_base="1.1",
 )

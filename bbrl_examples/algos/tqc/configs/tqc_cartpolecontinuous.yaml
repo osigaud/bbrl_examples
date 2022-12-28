@@ -19,7 +19,7 @@
             nb_evals: 10
             learning_starts: 10000
             tau_target: 0.05
-            top_quantiles_to_drop: 42
+            top_quantiles_to_drop: 12
             max_epochs: 25000
             discount_factor: 0.98
             entropy_coef: 1e-7

@@ -24,7 +24,7 @@ class NoAutoResetEnvAgent(NoAutoResetGymAgent):
         del env
 
 def create_env_agents(cfg):
-    """ Create the environment agent """
+    """ Create the environment agents """
     train_env_agent = AutoResetGymAgent(
         get_class(cfg.gym_env),
         get_arguments(cfg.gym_env),
