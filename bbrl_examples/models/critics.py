@@ -79,8 +79,11 @@ class TruncatedQuantileNetwork(Agent):
         self.is_q_function = True
         self.nets = []
         for i in range(n_nets):
-            net = build_mlp([state_dim + action_dim] + list(hidden_layers) + [n_quantiles], activation=nn.ReLU())
-            self.add_module(f'qf{i}', net)
+            net = build_mlp(
+                [state_dim + action_dim] + list(hidden_layers) + [n_quantiles],
+                activation=nn.ReLU(),
+            )
+            self.add_module(f"qf{i}", net)
             self.nets.append(net)
 
     def forward(self, t):

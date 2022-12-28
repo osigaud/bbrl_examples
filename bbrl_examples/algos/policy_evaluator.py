@@ -9,14 +9,14 @@ from bbrl.agents import Agents, PrintAgent, TemporalAgent
 from bbrl.agents.gymb import NoAutoResetGymAgent
 from bbrl.utils.chrono import Chrono
 
-from bbrl_examples.models.actors import *
-from bbrl_examples.models.critics import *
+# from bbrl_examples.models.actors import *
+# from bbrl_examples.models.critics import *
+# from script_ddqn import *
 
 path = "/data/policies/"
 nb_trials = 2
 seed = 3
 
-from script_ddqn import *
 
 def make_gym_env(env_name):
     """Create the used environment"""
@@ -40,7 +40,7 @@ def evaluate_agent(filename, env_name):
         agents = Agents(eval_env, agent)
         eval_agent = TemporalAgent(agents)
     print(eval_agent)
-    
+
     means = np.zeros(nb_trials)
     for i in range(nb_trials):
         eval_workspace = Workspace()  # Used for evaluation

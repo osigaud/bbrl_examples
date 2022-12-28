@@ -349,7 +349,13 @@ def run_sac(cfg):
                 directory = "./sac_agent/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + cfg.gym_env.env_name + "#sac#team#" + str(mean.item()) + ".agt"
+                filename = (
+                    directory
+                    + cfg.gym_env.env_name
+                    + "#sac#team#"
+                    + str(mean.item())
+                    + ".agt"
+                )
                 eval_agent.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(

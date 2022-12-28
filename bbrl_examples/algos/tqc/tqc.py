@@ -52,22 +52,18 @@ def create_tqc_agent(cfg, train_env_agent, eval_env_agent):
 
     # Builds the critics
     critic = TruncatedQuantileNetwork(
-        obs_size, cfg.algorithm.architecture.critic_hidden_size,
-        cfg.algorithm.architecture.n_nets, act_size,
-        cfg.algorithm.architecture.n_quantiles
+        obs_size,
+        cfg.algorithm.architecture.critic_hidden_size,
+        cfg.algorithm.architecture.n_nets,
+        act_size,
+        cfg.algorithm.architecture.n_quantiles,
     )
     target_critic = copy.deepcopy(critic)
 
     train_agent = TemporalAgent(tr_agent)
     eval_agent = TemporalAgent(ev_agent)
     train_agent.seed(cfg.algorithm.seed)
-    return (
-        train_agent,
-        eval_agent,
-        actor,
-        critic,
-        target_critic
-    )
+    return (train_agent, eval_agent, actor, critic, target_critic)
 
 
 def make_gym_env(env_name):
@@ -106,12 +102,14 @@ def setup_entropy_optimizers(cfg):
 
 
 def compute_critic_loss(
-        cfg, reward, must_bootstrap,
-        t_actor,
-        q_agent,
-        target_q_agent,
-        rb_workspace,
-        ent_coef
+    cfg,
+    reward,
+    must_bootstrap,
+    t_actor,
+    q_agent,
+    target_q_agent,
+    rb_workspace,
+    ent_coef,
 ):
     # Compute quantiles from critic with the actions present in the buffer:
     # at t, we have Qu  ntiles(s,a) from the (s,a) in the RB
@@ -131,26 +129,36 @@ def compute_critic_loss(
         post_quantiles = rb_workspace["quantiles"][1]
 
         sorted_quantiles, _ = torch.sort(post_quantiles.reshape(quantiles.shape[0], -1))
-        quantiles_to_drop_total = cfg.algorithm.top_quantiles_to_drop * cfg.algorithm.architecture.n_nets
-        truncated_sorted_quantiles = sorted_quantiles[:,
-                                     :quantiles.size(-1) * quantiles.size(-2) - quantiles_to_drop_total]
+        quantiles_to_drop_total = (
+            cfg.algorithm.top_quantiles_to_drop * cfg.algorithm.architecture.n_nets
+        )
+        truncated_sorted_quantiles = sorted_quantiles[
+            :, : quantiles.size(-1) * quantiles.size(-2) - quantiles_to_drop_total
+        ]
 
         # compute the target
         logprobs = ent_coef * action_logprobs_next[1]
-        y = reward[0].unsqueeze(-1) + must_bootstrap.int().unsqueeze(-1) * cfg.algorithm.discount_factor * (
-                    truncated_sorted_quantiles - logprobs.unsqueeze(-1))
+        y = reward[0].unsqueeze(-1) + must_bootstrap.int().unsqueeze(
+            -1
+        ) * cfg.algorithm.discount_factor * (
+            truncated_sorted_quantiles - logprobs.unsqueeze(-1)
+        )
 
     # computing the Huber loss
-    pairwise_delta = y[:, None, None, :] - quantiles[:, :, :, None]  # batch x nets x quantiles x samples
+    pairwise_delta = (
+        y[:, None, None, :] - quantiles[:, :, :, None]
+    )  # batch x nets x quantiles x samples
 
     abs_pairwise_delta = torch.abs(pairwise_delta)
-    huber_loss = torch.where(abs_pairwise_delta > 1,
-                             abs_pairwise_delta - 0.5,
-                             pairwise_delta ** 2 * 0.5)
+    huber_loss = torch.where(
+        abs_pairwise_delta > 1, abs_pairwise_delta - 0.5, pairwise_delta**2 * 0.5
+    )
 
     n_quantiles = quantiles.shape[2]
     tau = torch.arange(n_quantiles).float() / n_quantiles + 1 / 2 / n_quantiles
-    loss = (torch.abs(tau[None, None, :, None] - (pairwise_delta < 0).float()) * huber_loss).mean()
+    loss = (
+        torch.abs(tau[None, None, :, None] - (pairwise_delta < 0).float()) * huber_loss
+    ).mean()
     return loss
 
 
@@ -170,9 +178,10 @@ def compute_actor_loss(ent_coef, t_actor, q_agent, rb_workspace):
     q_agent(rb_workspace, t=0, n_steps=1)
     quantiles = rb_workspace["quantiles"][0]
 
-    actor_loss = (ent_coef * action_logprobs_new[0] - quantiles.mean(2).mean(1))
+    actor_loss = ent_coef * action_logprobs_new[0] - quantiles.mean(2).mean(1)
 
     return actor_loss.mean()
+
 
 def run_tqc(cfg):
     # 1)  Build the  logger
@@ -184,13 +193,9 @@ def run_tqc(cfg):
     train_env_agent, eval_env_agent = create_env_agents(cfg)
 
     # 3) Create the A2C Agent
-    (
-        train_agent,
-        eval_agent,
-        actor,
-        critic,
-        target_critic
-    ) = create_tqc_agent(cfg, train_env_agent, eval_env_agent)
+    (train_agent, eval_agent, actor, critic, target_critic) = create_tqc_agent(
+        cfg, train_env_agent, eval_env_agent
+    )
 
     t_actor = TemporalAgent(actor)
     q_agent = TemporalAgent(critic)
@@ -251,15 +256,20 @@ def run_tqc(cfg):
             # See https://colab.research.google.com/drive/1erLbRKvdkdDy0Zn1X_JhC01s1QAt4BBj?usp=sharing
             must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
-            critic_loss = compute_critic_loss(cfg, reward, must_bootstrap,
-                                              t_actor, q_agent, target_q_agent,
-                                              rb_workspace, ent_coef)
+            critic_loss = compute_critic_loss(
+                cfg,
+                reward,
+                must_bootstrap,
+                t_actor,
+                q_agent,
+                target_q_agent,
+                rb_workspace,
+                ent_coef,
+            )
 
             logger.add_log("critic_loss", critic_loss, nb_steps)
 
-            actor_loss = compute_actor_loss(
-                ent_coef, t_actor, q_agent, rb_workspace
-            )
+            actor_loss = compute_actor_loss(ent_coef, t_actor, q_agent, rb_workspace)
             logger.add_log("actor_loss", actor_loss, nb_steps)
 
             # Entropy coef update part #####################################################
@@ -269,7 +279,7 @@ def run_tqc(cfg):
                 # see https://github.com/rail-berkeley/softlearning/issues/60
                 ent_coef = torch.exp(log_entropy_coef.detach())
                 entropy_coef_loss = -(
-                        log_entropy_coef * (action_logprobs_rb + target_entropy)
+                    log_entropy_coef * (action_logprobs_rb + target_entropy)
                 ).mean()
                 entropy_coef_optimizer.zero_grad()
                 # We need to retain the graph because we reuse the
@@ -325,7 +335,13 @@ def run_tqc(cfg):
                 directory = f"./agents/{cfg.gym_env.env_name}/tqc_agent/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + cfg.gym_env.env_name + "#tqc#team" + str(mean.item()) + ".agt"
+                filename = (
+                    directory
+                    + cfg.gym_env.env_name
+                    + "#tqc#team"
+                    + str(mean.item())
+                    + ".agt"
+                )
                 actor.save_model(filename)
                 """ Not ready for visualizing quantile policies and critic
                 if False:  # cfg.plot_agents:
@@ -345,6 +361,7 @@ def run_tqc(cfg):
                         best_reward,
                     )
                 """
+
 
 @hydra.main(
     config_path="./configs/",

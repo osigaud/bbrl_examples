@@ -11,12 +11,13 @@ from bbrl.agents.agent import Agent
 
 
 class BaseActor(Agent, ABC):
-    """ Generic class to centralize copy_parameters"""
+    """Generic class to centralize copy_parameters"""
 
     def copy_parameters(self, other):
         """Copy parameters from other agent"""
         for self_p, other_p in zip(self.parameters(), other.parameters()):
             self_p.data.copy_(other_p)
+
 
 class ProbAgent(Agent):
     def __init__(self, state_dim, hidden_layers, n_action):
@@ -152,7 +153,7 @@ class TunableVarianceContinuousActor(BaseActor):
 
     def get_distribution(self, obs: torch.Tensor):
         mean = self.model(obs)
-        return Independent(Normal(mean, self.soft_plus(self.std_param[: ,0])), 1)
+        return Independent(Normal(mean, self.soft_plus(self.std_param[:, 0])), 1)
 
     def forward(
         self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
@@ -200,13 +201,13 @@ class TunableVarianceContinuousActorExp(BaseActor):
         return Independent(Normal(mean, torch.exp(std)), 1)
 
     def forward(
-            self,
-            t,
-            *,
-            stochastic=True,
-            predict_proba=False,
-            compute_entropy=False,
-            **kwargs,
+        self,
+        t,
+        *,
+        stochastic=True,
+        predict_proba=False,
+        compute_entropy=False,
+        **kwargs,
     ):
         obs = self.get(("env/env_obs", t))
         dist = self.get_distribution(obs)
@@ -331,8 +332,8 @@ class ContinuousDeterministicActor(BaseActor):
 
 class ActorAgent(Agent):
     """Choose an action (either according to p(a_t|s_t) when stochastic is true,
-               or with argmax if false.
-            """
+    or with argmax if false.
+    """
 
     def __init__(self):
         super().__init__()

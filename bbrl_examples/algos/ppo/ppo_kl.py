@@ -43,23 +43,9 @@ from bbrl.utils.chrono import Chrono
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
 
+
 def make_gym_env(env_name):
     return gym.make(env_name)
-
-def get_env_agents(cfg):
-    train_env_agent = AutoResetGymAgent(
-        get_class(cfg.gym_env),
-        get_arguments(cfg.gym_env),
-        cfg.algorithm.n_envs,
-        cfg.algorithm.seed,
-    )
-    eval_env_agent = NoAutoResetGymAgent(
-    get_class(cfg.gym_env),
-    get_arguments(cfg.gym_env),
-    cfg.algorithm.nb_evals,
-    cfg.algorithm.seed,
-    )
-    return train_env_agent, eval_env_agent
 
 
 # Create the PPO Agent
@@ -87,13 +73,23 @@ def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     old_policy = copy.deepcopy(policy)
     old_critic_agent = copy.deepcopy(critic_agent)
     kl_agent = TemporalAgent(KLAgent(old_policy, policy))
-    return policy, train_agent, eval_agent, critic_agent, old_policy, old_critic_agent, kl_agent
+    return (
+        policy,
+        train_agent,
+        eval_agent,
+        critic_agent,
+        old_policy,
+        old_critic_agent,
+        kl_agent,
+    )
+
 
 def setup_optimizer(cfg, action_agent, critic_agent):
     optimizer_args = get_arguments(cfg.optimizer)
     parameters = nn.Sequential(action_agent, critic_agent).parameters()
     optimizer = get_class(cfg.optimizer)(parameters, **optimizer_args)
     return optimizer
+
 
 def compute_advantage(cfg, reward, must_bootstrap, v_value):
     # Compute temporal difference with GAE
@@ -106,16 +102,18 @@ def compute_advantage(cfg, reward, must_bootstrap, v_value):
     )
     return advantage
 
+
 def compute_critic_loss(advantage):
     td_error = advantage**2
     critic_loss = td_error.mean()
     return critic_loss
 
+
 def compute_agent_loss(cfg, advantage, ratio, kl_loss):
-    """Computes the PPO loss including KL regularization
-    """
+    """Computes the PPO loss including KL regularization"""
     actor_loss = (advantage * ratio - cfg.algorithm.beta * kl_loss).mean()
     return actor_loss
+
 
 def run_ppo_v1(cfg):
     # 1)  Build the  logger
@@ -137,7 +135,7 @@ def run_ppo_v1(cfg):
     ) = create_ppo_agent(cfg, train_env_agent, eval_env_agent)
 
     actor = TemporalAgent(policy)
-    old_actor= TemporalAgent(old_policy)
+    old_actor = TemporalAgent(old_policy)
     train_workspace = Workspace()
 
     # Configure the optimizer
@@ -207,41 +205,47 @@ def run_ppo_v1(cfg):
         # then we compute the advantage using the clamped critic values
         advantage = compute_advantage(cfg, reward, must_bootstrap, v_value)
 
-
         # We store the advantage into the transition_workspace
         transition_workspace.set("advantage", 0, advantage)
         transition_workspace.set("advantage", 1, torch.zeros_like(advantage))
         # We rename logprob_predict data into old_action_logprobs
         # We do so because we will rewrite in the logprob_predict variable in mini_batches
-        transition_workspace.set_full("old_action_logprobs", transition_workspace["logprob_predict"].detach())
+        transition_workspace.set_full(
+            "old_action_logprobs", transition_workspace["logprob_predict"].detach()
+        )
         transition_workspace.clear("logprob_predict")
 
         # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
             if cfg.algorithm.minibatch_size > 0:
-                sample_workspace = transition_workspace.sample_subworkspace(1, cfg.algorithm.minibatch_size, 2)
+                sample_workspace = transition_workspace.sample_subworkspace(
+                    1, cfg.algorithm.minibatch_size, 2
+                )
             else:
                 sample_workspace = transition_workspace
 
-            actor(sample_workspace, t=0, n_steps=1, compute_entropy=True, predict_proba=True)
+            actor(
+                sample_workspace,
+                t=0,
+                n_steps=1,
+                compute_entropy=True,
+                predict_proba=True,
+            )
 
             advantage, action_logp, old_action_logp, entropy = sample_workspace[
-                "advantage",
-                "logprob_predict",
-                "old_action_logprobs",
-                "entropy"
+                "advantage", "logprob_predict", "old_action_logprobs", "entropy"
             ]
 
-            critic_loss = compute_critic_loss(advantage)  # issue here, can be used only once
+            critic_loss = compute_critic_loss(
+                advantage
+            )  # issue here, can be used only once
             adv_actor = advantage.detach().squeeze(0)[0]
             act_diff = action_logp[0] - old_action_logp[0]
             ratios = act_diff.exp()
 
             kl_agent(sample_workspace, t=0, n_steps=1)
             kl = sample_workspace["kl"][0]
-            actor_loss = compute_agent_loss(
-                cfg, adv_actor, ratios, kl
-            )
+            actor_loss = compute_agent_loss(cfg, adv_actor, ratios, kl)
 
             # Entropy loss favor exploration
             entropy_loss = torch.mean(entropy[0])
@@ -254,8 +258,8 @@ def run_ppo_v1(cfg):
             loss_critic = cfg.algorithm.critic_coef * critic_loss
 
             loss = (
-                    - cfg.algorithm.actor_coef * actor_loss
-                    - cfg.algorithm.entropy_coef * entropy_loss
+                -cfg.algorithm.actor_coef * actor_loss
+                - cfg.algorithm.entropy_coef * entropy_loss
             )
 
             old_policy.copy_parameters(policy)
@@ -318,7 +322,13 @@ def run_ppo_v1(cfg):
                 directory = f"./ppo_agent/{cfg.gym_env.env_name}/"
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                filename = directory + cfg.gym_env.env_name + "#ppo_kl#team#" + str(mean.item()) + ".agt"
+                filename = (
+                    directory
+                    + cfg.gym_env.env_name
+                    + "#ppo_kl#team#"
+                    + str(mean.item())
+                    + ".agt"
+                )
                 policy.save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(
@@ -337,6 +347,7 @@ def run_ppo_v1(cfg):
                         best_reward,
                     )
 
+
 @hydra.main(
     config_path="./configs/",
     # config_name="ppo_lunarlander_continuous.yaml",
@@ -346,7 +357,6 @@ def run_ppo_v1(cfg):
     # config_name="ppo_cartpole.yaml",
     version_base="1.1",
 )
-
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     torch.manual_seed(cfg.algorithm.seed)
