@@ -40,3 +40,13 @@ def create_env_agents(cfg):
         cfg.algorithm.seed,
     )
     return train_env_agent, eval_env_agent
+
+
+def create_no_reset_env_agent(cfg):
+    eval_env_agent = NoAutoResetGymAgent(
+        get_class(cfg.gym_env),
+        get_arguments(cfg.gym_env),
+        cfg.algorithm.nb_evals,
+        cfg.algorithm.seed,
+    )
+    return eval_env_agent

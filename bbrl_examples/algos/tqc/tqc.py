@@ -2,9 +2,8 @@ import sys
 import os
 import copy
 import torch
-import torch.nn as nn
 import gym
-import my_gym
+import bbrl_gym
 import hydra
 import numpy as np
 
@@ -63,7 +62,7 @@ def create_tqc_agent(cfg, train_env_agent, eval_env_agent):
     train_agent = TemporalAgent(tr_agent)
     eval_agent = TemporalAgent(ev_agent)
     train_agent.seed(cfg.algorithm.seed)
-    return (train_agent, eval_agent, actor, critic, target_critic)
+    return train_agent, eval_agent, actor, critic, target_critic
 
 
 def make_gym_env(env_name):
@@ -365,7 +364,8 @@ def run_tqc(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="tqc_cartpolecontinuous.yaml",
+    # config_name="tqc_cartpolecontinuous.yaml",
+    config_name="tqc_swimmer.yaml",
     # config_name="tqc_pendulum.yaml",
     # config_name="tqc_rocket_lander.yaml",
     # config_name="tqc_lunar_lander_continuous.yaml",

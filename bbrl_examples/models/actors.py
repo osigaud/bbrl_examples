@@ -105,6 +105,30 @@ class DiscreteActor(BaseActor):
         return action
 
 
+class DiscreteDeterministicActor(BaseActor):
+    def __init__(self, state_dim, hidden_size, n_actions):
+        super().__init__()
+        self.model = build_mlp(
+            [state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU()
+        )
+
+    def forward(self, t, **kwargs):
+        """
+        Compute the action given either a time step (looking into the workspace)
+        or an observation (in kwargs)
+        """
+        if "observation" in kwargs:
+            observation = kwargs["observation"]
+        else:
+            observation = self.get(("env/env_obs", t))
+        action = self.model(observation)
+        self.set(("action", t), action)
+
+    def predict_action(self, obs):
+        action = self.model(obs)
+        return action
+
+
 class BernoulliActor(Agent):
     def __init__(self, state_dim, hidden_layers):
         super().__init__()
