@@ -94,15 +94,17 @@ def run_cem(cfg):
             rewards = workspace["env/cumulated_reward"][-1]
             mean_reward = rewards.mean()
             logger.add_log("reward", mean_reward, nb_steps)
-            print(f"nb_steps: {nb_steps}, reward: {mean_reward}")
 
             # ---------------------------------------------------
             scores.append(mean_reward)
 
-            if mean_reward >= best_score:
-                best_score = mean_reward
-                # best_params = weights[i]
-            print(f"Indiv: {i + 1} score {scores[i]:.2f}")
+            # if mean_reward >= best_score:
+            # best_score = mean_reward
+            # best_params = weights[i]
+            if cfg.verbose:
+                print(f"Indiv: {i + 1} score {scores[i]:.2f}")
+                print(f"nb_steps: {nb_steps}, reward: {mean_reward}")
+
         print("Best score: ", best_score)
         # Keep only best individuals to compute the new centroid
         elites_idxs = np.argsort(scores)[-cfg.algorithm.elites_nb :]
@@ -117,13 +119,13 @@ def run_cem(cfg):
         matrix.update_covariance(elites_weights)
         if cfg.save_best and mean_reward > best_score:
             best_score = mean_reward
-            directory = "./ppo_agent/"
+            directory = "./cem_agent/"
             if not os.path.exists(directory):
                 os.makedirs(directory)
             filename = (
                 directory
                 + cfg.gym_env.env_name
-                + "#ppo_basic#team#"
+                + "#cem_basic#team#"
                 + str(mean_reward.item())
                 + ".agt"
             )
@@ -132,7 +134,7 @@ def run_cem(cfg):
                 plot_policy(
                     eval_agent.agent.agents[1],
                     eval_env_agent,
-                    "./ppo_plots/",
+                    "./cem_plots/",
                     cfg.gym_env.env_name,
                     best_score,
                     stochastic=False,
