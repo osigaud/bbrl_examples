@@ -1,5 +1,6 @@
 import numpy as np
 import gym
+import os
 
 
 import torch
@@ -10,8 +11,10 @@ from bbrl.workspace import Workspace
 from bbrl.agents import Agents, TemporalAgent
 
 from bbrl_examples.models.loggers import Logger
-from bbrl_examples.models.actors import DiscreteDeterministicActor
+from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.envs import create_no_reset_env_agent
+
+from bbrl.visu.visu_policies import plot_policy
 
 
 class CovMatrix:
@@ -38,7 +41,7 @@ class CovMatrix:
 # Create the PPO Agent
 def create_CEM_agent(cfg, env_agent):
     obs_size, act_size = env_agent.get_obs_and_actions_sizes()
-    action_agent = DiscreteDeterministicActor(
+    action_agent = DiscreteActor(
         obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
     )
     ev_agent = Agents(env_agent, action_agent)
@@ -56,7 +59,7 @@ def make_gym_env(env_name):
 def run_cem(cfg):
     # 1)  Build the  logger
     torch.manual_seed(cfg.algorithm.seed)
-    # logger = Logger(cfg)
+    logger = Logger(cfg)
     eval_env_agent = create_no_reset_env_agent(cfg)
 
     pop_size = cfg.algorithm.pop_size
@@ -72,6 +75,7 @@ def run_cem(cfg):
     )
 
     best_score = -np.inf
+    nb_steps = 0
 
     # 7) Training loop
     for epoch in range(cfg.algorithm.max_epochs):
@@ -85,23 +89,20 @@ def run_cem(cfg):
             torch.nn.utils.vector_to_parameters(w, eval_agent.parameters())
 
             eval_agent(workspace, t=0, stop_variable="env/done")
-            episode_lengths = workspace["env/done"].float().argmax(0) + 1
-            arange = torch.arange(cfg.algorithm.n_envs)
-            mean_reward = (
-                workspace["env/cumulated_reward"][episode_lengths - 1, arange]
-                .mean()
-                .item()
-            )
+            action = workspace["action"]
+            nb_steps += action[0].shape[0]
+            rewards = workspace["env/cumulated_reward"][-1]
+            mean_reward = rewards.mean()
+            logger.add_log("reward", mean_reward, nb_steps)
+            print(f"nb_steps: {nb_steps}, reward: {mean_reward}")
+
             # ---------------------------------------------------
             scores.append(mean_reward)
 
             if mean_reward >= best_score:
                 best_score = mean_reward
                 # best_params = weights[i]
-
-            if cfg.verbose > 0:
-                print(f"Indiv: {i + 1} score {scores[i]:.2f}")
-
+            print(f"Indiv: {i + 1} score {scores[i]:.2f}")
         print("Best score: ", best_score)
         # Keep only best individuals to compute the new centroid
         elites_idxs = np.argsort(scores)[-cfg.algorithm.elites_nb :]
@@ -114,6 +115,28 @@ def run_cem(cfg):
         # Update covariance
         matrix.update_noise()
         matrix.update_covariance(elites_weights)
+        if cfg.save_best and mean_reward > best_score:
+            best_score = mean_reward
+            directory = "./ppo_agent/"
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            filename = (
+                directory
+                + cfg.gym_env.env_name
+                + "#ppo_basic#team#"
+                + str(mean_reward.item())
+                + ".agt"
+            )
+            eval_agent.save_model(filename)
+            if cfg.plot_agents:
+                plot_policy(
+                    eval_agent.agent.agents[1],
+                    eval_env_agent,
+                    "./ppo_plots/",
+                    cfg.gym_env.env_name,
+                    best_score,
+                    stochastic=False,
+                )
 
 
 @hydra.main(
