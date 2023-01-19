@@ -104,8 +104,29 @@ def run_cem(cfg):
             if cfg.verbose:
                 print(f"Indiv: {i + 1} score {scores[i]:.2f}")
                 print(f"nb_steps: {nb_steps}, reward: {mean_reward}")
-
-        print("Best score: ", best_score)
+            if cfg.save_best and mean_reward > best_score:
+                best_score = mean_reward
+                print("Best score: ", best_score)
+                directory = "./cem_agent/"
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
+                filename = (
+                    directory
+                    + cfg.gym_env.env_name
+                    + "#cem_basic#team#"
+                    + str(mean_reward.item())
+                    + ".agt"
+                )
+                eval_agent.save_model(filename)
+                if cfg.plot_agents:
+                    plot_policy(
+                        eval_agent.agent.agents[1],
+                        eval_env_agent,
+                        "./cem_plots/",
+                        cfg.gym_env.env_name,
+                        best_score,
+                        stochastic=False,
+                    )
         # Keep only best individuals to compute the new centroid
         elites_idxs = np.argsort(scores)[-cfg.algorithm.elites_nb :]
         elites_weights = [weights[k] for k in elites_idxs]
@@ -117,28 +138,6 @@ def run_cem(cfg):
         # Update covariance
         matrix.update_noise()
         matrix.update_covariance(elites_weights)
-        if cfg.save_best and mean_reward > best_score:
-            best_score = mean_reward
-            directory = "./cem_agent/"
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-            filename = (
-                directory
-                + cfg.gym_env.env_name
-                + "#cem_basic#team#"
-                + str(mean_reward.item())
-                + ".agt"
-            )
-            eval_agent.save_model(filename)
-            if cfg.plot_agents:
-                plot_policy(
-                    eval_agent.agent.agents[1],
-                    eval_env_agent,
-                    "./cem_plots/",
-                    cfg.gym_env.env_name,
-                    best_score,
-                    stochastic=False,
-                )
 
 
 @hydra.main(
