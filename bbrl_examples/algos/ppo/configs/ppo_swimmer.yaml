@@ -15,12 +15,12 @@
             n_steps: 256
             eval_interval: 4000
             nb_evals: 10
-            gae: 0.9
+            gae: 0.99
             max_epochs: 21000
             discount_factor: 0.999999
             entropy_coef: 0
-            critic_coef: 0.9
-            actor_coef: 1
+            minibatch_size: 64
+            opt_epochs: 1
             clip_range: 0.2
             clip_range_vf: 0
             architecture:

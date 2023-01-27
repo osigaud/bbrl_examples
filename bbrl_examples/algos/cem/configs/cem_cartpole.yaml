@@ -1,6 +1,6 @@
       save_best: True
       plot_agents: True
-      verbose: False
+      verbose: True
 
       logger:
             classname: bbrl.utils.logger.TFLogger
@@ -25,7 +25,7 @@
 
       gym_env:
             classname: __main__.make_gym_env
-            env_name: CartPole-v1
+            env_name: MountainCar-v0
 
       optimizer:
             classname: torch.optim.Adam
