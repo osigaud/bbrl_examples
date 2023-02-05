@@ -1,4 +1,4 @@
-    save_best: False
+    save_best: True
     plot_agents: False
 
     logger:
@@ -14,18 +14,19 @@
       eval_interval: 2000
       nb_evals: 10
       max_grad_norm: 0.5
-      gae: 0.8
+      gae: 0.99
       max_epochs: 3000
-      discount_factor: 0.9999
+      discount_factor: 0.99999
       entropy_coef: 2.55e-5
       critic_coef: 0.6
       a2c_coef: 1
+      actor_type: TunableVarianceContinuousActor
       architecture:
         hidden_size: [24, 36]
 
     gym_env:
       classname: __main__.make_gym_env
-      env_name: Swimmer-v2
+      env_name: Swimmer-v3
 
     optimizer:
       classname: torch.optim.Adam

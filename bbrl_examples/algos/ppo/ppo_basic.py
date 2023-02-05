@@ -299,8 +299,8 @@ def run_ppo(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ppo_lunarlander_continuous.yaml",
-    # config_name="ppo_swimmer.yaml",
+    # config_name="ppo_lunarlander_continuous.yaml",
+    config_name="ppo_swimmer.yaml",
     # config_name="ppo_pendulum.yaml",
     # config_name="ppo_cartpole.yaml",
     version_base="1.1",

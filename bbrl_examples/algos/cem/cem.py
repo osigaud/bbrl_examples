@@ -88,7 +88,7 @@ def run_cem(cfg):
             w = weights[i]
             torch.nn.utils.vector_to_parameters(w, eval_agent.parameters())
 
-            eval_agent(workspace, t=0, stop_variable="env/done")
+            eval_agent(workspace, t=0, stop_variable="env/done", render=True)
             action = workspace["action"]
             nb_steps += action[0].shape[0]
             rewards = workspace["env/cumulated_reward"][-1]

@@ -18,4 +18,5 @@ pyglet
 easypip
 stable_baselines3
 pyglet==1.5.27
+mujoco-py<2.2,>=2.1
 

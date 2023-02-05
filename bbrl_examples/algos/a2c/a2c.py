@@ -145,6 +145,7 @@ def run_a2c(cfg):
                 n_steps=cfg.algorithm.n_steps - 1,
                 stochastic=True,
                 predict_proba=False,
+                compute_entropy=True,
             )
         else:
             a2c_agent(
@@ -153,6 +154,7 @@ def run_a2c(cfg):
                 n_steps=cfg.algorithm.n_steps,
                 stochastic=True,
                 predict_proba=False,
+                compute_entropy=True,
             )
 
         # Compute the critic value over the whole workspace
@@ -251,8 +253,9 @@ def run_a2c(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="a2c_pendulum.yaml",
-    version_base="1.1",
+    # config_name="a2c_pendulum.yaml",
+    config_name="a2c_swimmer.yaml",
+    # version_base="1.1",
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
