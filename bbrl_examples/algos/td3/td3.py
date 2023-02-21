@@ -283,13 +283,13 @@ def run_td3(cfg, reward_logger):
                         best_reward,
                         stochastic=False,
                     )
-                plot_critic(
-                    q_agent_1.agent,  # TODO: do we want to plot both critics?
-                    eval_env_agent,
-                    "./td3_plots/",
-                    cfg.gym_env.env_name,
-                    nb_steps,
-                )
+                    plot_critic(
+                        q_agent_1.agent,  # TODO: do we want to plot both critics?
+                        eval_env_agent,
+                        "./td3_plots/",
+                        cfg.gym_env.env_name,
+                        nb_steps,
+                    )
     delta_list_mean = np.array(delta_list).mean(axis=1)
     delta_list_std = np.array(delta_list).std(axis=1)
     return delta_list_mean, delta_list_std

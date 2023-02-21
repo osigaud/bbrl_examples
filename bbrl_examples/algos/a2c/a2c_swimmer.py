@@ -213,6 +213,7 @@ def run_a2c(cfg):
                 stop_variable="env/done",
                 stochastic=False,
                 predict_proba=False,
+                render=True,
             )
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
@@ -255,7 +256,6 @@ def run_a2c(cfg):
 @hydra.main(
     config_path="./configs/",
     config_name="a2c_swimmer.yaml",
-    version_base="1.1",
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))

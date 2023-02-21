@@ -9,10 +9,10 @@
 
     algorithm:
       seed: 4
-      n_envs: 8
+      n_envs: 1
       n_steps: 20
       eval_interval: 2000
-      nb_evals: 10
+      nb_evals: 1
       max_grad_norm: 0.5
       gae: 0.99
       max_epochs: 3000
