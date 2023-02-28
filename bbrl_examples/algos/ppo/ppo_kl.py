@@ -35,10 +35,10 @@ from bbrl.agents import Agents, TemporalAgent
 from bbrl_examples.models.envs import create_env_agents
 
 # Neural network models for actors and critics
-from bbrl_examples.models.actors import TunableVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import TunableVarianceContinuousActor
 
-# from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
-from bbrl_examples.models.actors import DiscreteActor
+# from bbrl_examples.models.stochastic_actors import StateDependentVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import DiscreteActor
 from bbrl_examples.models.critics import VAgent
 
 # This one is specific to PPO, it is used to compute the KL divergence between the current and the past policy
