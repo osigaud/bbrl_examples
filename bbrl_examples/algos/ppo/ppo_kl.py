@@ -36,6 +36,8 @@ from bbrl_examples.models.envs import create_env_agents
 
 # Neural network models for actors and critics
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
+
+# from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
 from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.critics import VAgent
 
@@ -162,7 +164,7 @@ def run_ppo_v1(cfg):
             n_steps=cfg.algorithm.n_steps - delta_t,
             stochastic=True,
             predict_proba=False,
-            compute_entropy=True,
+            compute_entropy=False,
         )
         old_actor(
             train_workspace,
@@ -178,6 +180,10 @@ def run_ppo_v1(cfg):
 
         transition_workspace = train_workspace.get_transitions()
 
+        action = transition_workspace["action"]
+
+        nb_steps += action[0].shape[0]
+
         done, truncated, reward, action, v_value = transition_workspace[
             "env/done",
             "env/truncated",
@@ -186,8 +192,6 @@ def run_ppo_v1(cfg):
             "v_value",
         ]
 
-        nb_steps += action[0].shape[0]
-
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
@@ -195,6 +199,22 @@ def run_ppo_v1(cfg):
 
         # then we compute the advantage using the clamped critic values
         advantage = compute_advantage(cfg, reward, must_bootstrap, v_value)
+        actor_advantage = advantage.squeeze(0)[0]
+
+        critic_loss = compute_critic_loss(
+            advantage
+        )  # issue here, can be used only once
+        loss_critic = cfg.algorithm.critic_coef * critic_loss
+        optimizer.zero_grad()
+        loss_critic.backward()
+        optimizer.step()
+
+        torch.nn.utils.clip_grad_norm_(
+            critic_agent.parameters(), cfg.algorithm.max_grad_norm
+        )
+
+        policy = train_agent.agent.agents[1]
+        cpt = 0
 
         # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
@@ -205,75 +225,54 @@ def run_ppo_v1(cfg):
             else:
                 sample_workspace = transition_workspace
 
-            train_agent.agent.agents[1](
+            with torch.no_grad():
+                kl_agent(sample_workspace, t=0, n_steps=1)
+                kl = sample_workspace["kl"][0]
+
+            # We only recompute the action of the current agent on the current workspace
+            policy(
                 sample_workspace,
                 t=0,
                 n_steps=1,
+                stochastic=True,
                 compute_entropy=True,
-                predict_proba=True,
+                predict_proba=False,
             )
+            print(cpt)
+            cpt = cpt + 1
 
+            # The logprob_predict Tensor has been computed on the old_policy outside the loop
             action_logp, old_action_logp, entropy = sample_workspace[
                 "action_logprobs", "logprob_predict", "entropy"
             ]
+            # print(sample_workspace["env/env_obs"])
+            # print(action_logp[0])
+            # print(old_action_logp[0])
 
-            critic_loss = compute_critic_loss(
-                advantage
-            )  # issue here, can be used only once
-            adv_actor = advantage.detach().squeeze(0)[0]
-            act_diff = action_logp[0] - old_action_logp[0]
+            act_diff = action_logp[0] - old_action_logp[0].detach()
             ratios = act_diff.exp()
 
-            kl_agent(sample_workspace, t=0, n_steps=1)
-            kl = sample_workspace["kl"][0]
-            actor_loss = compute_agent_loss(cfg, adv_actor, ratios, kl)
+            act_loss = compute_agent_loss(cfg, actor_advantage.detach(), ratios, kl)
+            actor_loss = -cfg.algorithm.actor_coef * act_loss
 
-            # Entropy loss favor exploration
-            entropy_loss = torch.mean(entropy[0])
-
-            # Store the losses for tensorboard display
-            if opt_epoch == 0:
-                # Just for the first epoch
-                logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
-
-            loss_critic = cfg.algorithm.critic_coef * critic_loss
-
-            loss = (
-                -cfg.algorithm.actor_coef * actor_loss
-                - cfg.algorithm.entropy_coef * entropy_loss
+            optimizer.zero_grad()
+            actor_loss.backward()  # retain_graph=True
+            torch.nn.utils.clip_grad_norm_(
+                train_agent.parameters(), cfg.algorithm.max_grad_norm
             )
+            optimizer.step()
 
             old_policy.copy_parameters(train_agent.agent.agents[1])
 
-            # [[remove]]
-            # Compute approximate form of reverse KL Divergence for early stopping
-            # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
-            # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
-            # and Schulman blog: http://joschu.net/blog/kl-approx.html
-            """
-            with torch.no_grad():
-                log_ratio = log_prob - rollout_data.old_log_prob
-                approx_kl_div = (
-                    torch.mean((torch.exp(log_ratio) - 1) - log_ratio).cpu().numpy()
-                )
-                approx_kl_divs.append(approx_kl_div)
+            # Entropy loss favors exploration
+            entr_loss = torch.mean(entropy[0])
+            entropy_loss = -cfg.algorithm.entropy_coef * entr_loss
 
-            if cfg.algorithm.target_kl is not None and approx_kl_div > 1.5 * cfg.algorithm.target_kl:
-                continue_training = False
-                if cfg.logger.verbose == True:
-                    print(
-                        f"Early stopping at step {epoch} due to reaching max kl: {approx_kl_div:.2f}"
-                    )
-                break
-            """
-            # [[/remove]]
+            # Store the losses for tensorboard display
+            logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
 
             optimizer.zero_grad()
-            loss_critic.backward()  # retain_graph=True)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                critic_agent.parameters(), cfg.algorithm.max_grad_norm
-            )
+            entropy_loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 train_agent.parameters(), cfg.algorithm.max_grad_norm
             )

@@ -24,7 +24,7 @@
             actor_coef: 0.5
             entropy_coef: 0.01
             minibatch_size: 64
-            opt_epochs: 1
+            opt_epochs: 2
             beta: 0.1
             architecture:
                   actor_hidden_size: [64, 64]
