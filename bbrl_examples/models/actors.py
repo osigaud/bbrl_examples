@@ -68,6 +68,8 @@ class DiscreteActor(BaseActor):
         """
         Compute the action given either a time step (looking into the workspace)
         or an observation (in kwargs)
+        If predict_proba is true, the agent takes the action already written in the workspace and adds its probability
+        Otherwise, it writes the new action
         """
         if "observation" in kwargs:
             observation = kwargs["observation"]
@@ -182,6 +184,12 @@ class TunableVarianceContinuousActor(BaseActor):
     def forward(
         self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
     ):
+        """
+        Compute the action given either a time step (looking into the workspace)
+        or an observation (in kwargs)
+        If predict_proba is true, the agent takes the action already written in the workspace and adds its probability
+        Otherwise, it writes the new action
+        """
         obs = self.get(("env/env_obs", t))
         if predict_proba:
             action = self.get(("action", t))
@@ -233,6 +241,12 @@ class TunableVarianceContinuousActorExp(BaseActor):
         compute_entropy=False,
         **kwargs,
     ):
+        """
+        Compute the action given either a time step (looking into the workspace)
+        or an observation (in kwargs)
+        If predict_proba is true, the agent takes the action already written in the workspace and adds its probability
+        Otherwise, it writes the new action
+        """
         obs = self.get(("env/env_obs", t))
         dist = self.get_distribution(obs)
 
@@ -269,7 +283,15 @@ class StateDependentVarianceContinuousActor(BaseActor):
         self.last_mean_layer = nn.Linear(hidden_layers[-1], action_dim)
         self.last_std_layer = nn.Linear(hidden_layers[-1], action_dim)
 
-    def forward(self, t, stochastic=False, **kwargs):
+    def forward(
+        self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
+    ):
+        """
+        Compute the action given either a time step (looking into the workspace)
+        or an observation (in kwargs)
+        If predict_proba is true, the agent takes the action already written in the workspace and adds its probability
+        Otherwise, it writes the new action
+        """
         obs = self.get(("env/env_obs", t))
         backbone_output = self.backbone(obs)
         mean = self.last_mean_layer(backbone_output)
@@ -277,15 +299,21 @@ class StateDependentVarianceContinuousActor(BaseActor):
         std = torch.exp(std_out)
         assert not torch.any(torch.isnan(mean)), "Nan Here"
         dist = Normal(mean, std)
-        self.set(("entropy", t), dist.entropy())
-        # print("entropy", dist.entropy())
-        if stochastic:
-            action = dist.sample()
+
+        if compute_entropy:
+            self.set(("entropy", t), dist.entropy())
+
+        if predict_proba:
+            action = self.get(("action", t))
+            self.set(("logprob_predict", t), dist.log_prob(action))
         else:
-            action = mean
-        log_prob = dist.log_prob(action).sum(axis=-1)
-        self.set(("action", t), action)
-        self.set(("action_logprobs", t), log_prob)
+            if stochastic:
+                action = dist.sample()
+            else:
+                action = mean
+            log_prob = dist.log_prob(action).sum(axis=-1)
+            self.set(("action", t), action)
+            self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic=False):
         """Predict just one action (without using the workspace)"""

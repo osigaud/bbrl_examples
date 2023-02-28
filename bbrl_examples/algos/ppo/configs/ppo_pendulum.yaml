@@ -20,8 +20,12 @@
             discount_factor: 0.9
             clip_range: 0.2
             clip_range_vf: 0
+            critic_coef: 0.5
+            actor_coef: 0.5
+            entropy_coef: 0.01
             minibatch_size: 64
             opt_epochs: 1
+            beta: 0.1
             architecture:
                   actor_hidden_size: [64, 64]
                   critic_hidden_size: [64, 64]

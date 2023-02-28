@@ -16,7 +16,8 @@ from bbrl import get_arguments, get_class
 from bbrl.utils.functionalb import gae
 
 from bbrl_examples.models.loggers import Logger
-from bbrl_examples.models.exploration_agents import KLAgent
+from bbrl.utils.chrono import Chrono
+
 
 # The workspace is the main class in BBRL, this is where all data is collected and stored
 from bbrl.workspace import Workspace
@@ -33,15 +34,23 @@ from bbrl.agents import Agents, TemporalAgent
 # At timestep t>0, these agents will read the ’action’ variable in the workspace at time t − 1
 from bbrl_examples.models.envs import create_env_agents
 
-# Allow to display the behavior of an agent
+# Neural network models for actors and critics
 from bbrl_examples.models.actors import TunableVarianceContinuousActor
 from bbrl_examples.models.actors import DiscreteActor
 from bbrl_examples.models.critics import VAgent
 
-from bbrl.utils.chrono import Chrono
+# This one is specific to PPO, it is used to compute the KL divergence between the current and the past policy
+from bbrl_examples.models.exploration_agents import KLAgent
 
+
+# Allow to display a policy and a critic as a 2D map
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
+
+
+import matplotlib
+
+matplotlib.use("TkAgg")
 
 
 def make_gym_env(env_name):
@@ -71,15 +80,12 @@ def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     train_agent.seed(cfg.algorithm.seed)
 
     old_policy = copy.deepcopy(policy)
-    old_critic_agent = copy.deepcopy(critic_agent)
     kl_agent = TemporalAgent(KLAgent(old_policy, policy))
     return (
-        policy,
         train_agent,
         eval_agent,
         critic_agent,
         old_policy,
-        old_critic_agent,
         kl_agent,
     )
 
@@ -125,21 +131,18 @@ def run_ppo_v1(cfg):
     train_env_agent, eval_env_agent = create_env_agents(cfg)
 
     (
-        policy,
         train_agent,
         eval_agent,
         critic_agent,
         old_policy,
-        old_critic_agent,
         kl_agent,
     ) = create_ppo_agent(cfg, train_env_agent, eval_env_agent)
 
-    actor = TemporalAgent(policy)
     old_actor = TemporalAgent(old_policy)
     train_workspace = Workspace()
 
     # Configure the optimizer
-    optimizer = setup_optimizer(cfg, policy, critic_agent)
+    optimizer = setup_optimizer(cfg, train_agent, critic_agent)
 
     # Training loop
     for epoch in range(cfg.algorithm.max_epochs):
@@ -167,18 +170,19 @@ def run_ppo_v1(cfg):
             n_steps=cfg.algorithm.n_steps - delta_t,
             # Just computes the probability to get the ratio of probabilities
             predict_proba=True,
+            compute_entropy=False,
         )
 
         # Compute the critic value over the whole workspace
         critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
 
         transition_workspace = train_workspace.get_transitions()
-        done, truncated, reward, action, action_logp, v_value = transition_workspace[
+
+        done, truncated, reward, action, v_value = transition_workspace[
             "env/done",
             "env/truncated",
             "env/reward",
             "action",
-            "action_logprobs",
             "v_value",
         ]
 
@@ -189,42 +193,19 @@ def run_ppo_v1(cfg):
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
         must_bootstrap = torch.logical_or(~done[1], truncated[1])
 
-        # the critic values are clamped to move not too far away from the values of the previous critic
-        with torch.no_grad():
-            old_critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
-        old_v_value = transition_workspace["v_value"]
-        if cfg.algorithm.clip_range_vf > 0:
-            # Clip the difference between old and new values
-            # NOTE: this depends on the reward scaling
-            v_value = old_v_value + torch.clamp(
-                v_value - old_v_value,
-                -cfg.algorithm.clip_range_vf,
-                cfg.algorithm.clip_range_vf,
-            )
-
         # then we compute the advantage using the clamped critic values
         advantage = compute_advantage(cfg, reward, must_bootstrap, v_value)
-
-        # We store the advantage into the transition_workspace
-        transition_workspace.set("advantage", 0, advantage)
-        transition_workspace.set("advantage", 1, torch.zeros_like(advantage))
-        # We rename logprob_predict data into old_action_logprobs
-        # We do so because we will rewrite in the logprob_predict variable in mini_batches
-        transition_workspace.set_full(
-            "old_action_logprobs", transition_workspace["logprob_predict"].detach()
-        )
-        transition_workspace.clear("logprob_predict")
 
         # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
             if cfg.algorithm.minibatch_size > 0:
-                sample_workspace = transition_workspace.sample_subworkspace(
-                    1, cfg.algorithm.minibatch_size, 2
+                sample_workspace = transition_workspace.select_batch_n(
+                    cfg.algorithm.minibatch_size
                 )
             else:
                 sample_workspace = transition_workspace
 
-            actor(
+            train_agent.agent.agents[1](
                 sample_workspace,
                 t=0,
                 n_steps=1,
@@ -232,8 +213,8 @@ def run_ppo_v1(cfg):
                 predict_proba=True,
             )
 
-            advantage, action_logp, old_action_logp, entropy = sample_workspace[
-                "advantage", "logprob_predict", "old_action_logprobs", "entropy"
+            action_logp, old_action_logp, entropy = sample_workspace[
+                "action_logprobs", "logprob_predict", "entropy"
             ]
 
             critic_loss = compute_critic_loss(
@@ -262,8 +243,7 @@ def run_ppo_v1(cfg):
                 - cfg.algorithm.entropy_coef * entropy_loss
             )
 
-            old_policy.copy_parameters(policy)
-            old_critic_agent = copy.deepcopy(critic_agent)
+            old_policy.copy_parameters(train_agent.agent.agents[1])
 
             # [[remove]]
             # Compute approximate form of reverse KL Divergence for early stopping
@@ -329,7 +309,7 @@ def run_ppo_v1(cfg):
                     + str(mean.item())
                     + ".agt"
                 )
-                policy.save_model(filename)
+                train_agent.agent.agents[1].save_model(filename)
                 if cfg.plot_agents:
                     plot_policy(
                         eval_agent.agent.agents[1],
