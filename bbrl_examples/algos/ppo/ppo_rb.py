@@ -14,6 +14,7 @@ from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 
 from bbrl.utils.functionalb import gae
+from bbrl.utils.replay_buffer import ReplayBuffer
 
 from bbrl_examples.models.loggers import Logger
 from bbrl.utils.chrono import Chrono
@@ -91,6 +92,7 @@ def run_ppo_v1(cfg):
     (train_agent,) = create_ppo_agent(cfg, train_env_agent, eval_env_agent)
 
     train_workspace = Workspace()
+    rb = ReplayBuffer()
 
     # Configure the optimizer
     optimizer = setup_optimizer(cfg, train_agent)
@@ -116,6 +118,7 @@ def run_ppo_v1(cfg):
             compute_entropy=False,
         )
         transition_workspace = train_workspace.get_transitions()
+        rb.put(transition_workspace)
 
         policy = train_agent.agent.agents[1]
         cpt = 0
@@ -123,9 +126,7 @@ def run_ppo_v1(cfg):
         # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
             if cfg.algorithm.minibatch_size > 0:
-                sample_workspace = transition_workspace.select_batch_n(
-                    cfg.algorithm.minibatch_size
-                )
+                sample_workspace = rb.get_shuffled(cfg.algorithm.minibatch_size)
             else:
                 sample_workspace = transition_workspace
 
