@@ -62,14 +62,9 @@ def make_gym_env(env_name):
 # Create the PPO Agent
 def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
-    if train_env_agent.is_continuous_action():
-        policy = TunableVarianceContinuousActor(
-            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
-        )
-    else:
-        policy = DiscreteActor(
-            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
-        )
+    policy = TunableVarianceContinuousActor(
+        obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
+    )
     tr_agent = Agents(train_env_agent, policy)
 
     train_agent = TemporalAgent(tr_agent)
@@ -143,9 +138,6 @@ def run_ppo_v1(cfg):
 
             # The logprob_predict Tensor has been computed on the old_policy outside the loop
             action_logp = sample_workspace["action_logprobs"]
-            # print(sample_workspace["env/env_obs"])
-            # print(action_logp[0])
-            # print(old_action_logp[0])
 
             act_diff = action_logp[0]
 
