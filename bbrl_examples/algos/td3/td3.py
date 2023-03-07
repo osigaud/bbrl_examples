@@ -165,13 +165,14 @@ def run_td3(cfg, reward_logger):
         rb.put(transition_workspace)
 
         for _ in range(cfg.algorithm.n_updates):
-            rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
 
-            done, truncated, reward = rb_workspace[
-                "env/done", "env/truncated", "env/reward"
-            ]
             # print(f"done {done}, reward {reward}, action {action}")
             if nb_steps > cfg.algorithm.learning_starts:
+                rb_workspace = rb.get_shuffled(cfg.algorithm.batch_size)
+
+                done, truncated, reward = rb_workspace[
+                    "env/done", "env/truncated", "env/reward"
+                ]
                 # Determines whether values of the critic should be propagated
                 # True if the episode reached a time limit or if the task was not done
                 # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
@@ -315,9 +316,9 @@ def main_loop(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    # config_name="td3_swimmer.yaml",
+    config_name="td3_swimmer.yaml",
     # config_name="td3_cartpolecontinuous.yaml",
-    config_name="td3_lunar_lander_continuous.yaml",
+    # config_name="td3_lunar_lander_continuous.yaml",
     # config_name="td3_pendulum.yaml",
     version_base="1.1",
 )

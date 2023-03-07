@@ -1,0 +1,32 @@
+      save_best: True
+      plot_agents: True
+
+      logger:
+            classname: bbrl.utils.logger.TFLogger
+            log_dir: ./dqn_logs/
+            verbose: False
+            every_n_seconds: 10
+
+      algorithm:
+            seed: 4
+            max_grad_norm: 0.5
+            n_envs: 8
+            n_steps: 20
+            eval_interval: 2000
+            nb_evals: 10
+            gae: 0.9
+            max_epochs: 3000
+            discount_factor: 0.99
+            entropy_coef: 2.55e-4
+            critic_coef: 0.5
+            a2c_coef: 1
+            architecture:
+                  hidden_size: [24, 36]
+
+      gym_env:
+            classname: __main__.make_gym_env
+            env_name: CartPole-v1
+
+      optimizer:
+            classname: torch.optim.Adam
+            lr: 1e-3
