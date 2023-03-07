@@ -155,14 +155,18 @@ def run_td3(cfg, reward_logger):
         if epoch > 0:
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
-            train_agent(train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1)
+            train_agent(
+                train_workspace, t=1, n_steps=cfg.algorithm.n_steps
+            )  # check if it should be n_steps=cfg.algorithm.n_steps - 1
         else:
             train_agent(train_workspace, t=0, n_steps=cfg.algorithm.n_steps)
 
         transition_workspace = train_workspace.get_transitions()
         action = transition_workspace["action"]
         nb_steps += action[0].shape[0]
-        rb.put(transition_workspace)
+        if epoch > 0 or cfg.algorithm.n_steps > 1:
+            rb.put(transition_workspace)
+            # rb.print_obs()
 
         for _ in range(cfg.algorithm.n_updates):
 

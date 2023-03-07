@@ -8,9 +8,9 @@
       every_n_seconds: 10
 
     algorithm:
-      seed: 4
+      seed: 2
       n_envs: 1
-      n_steps: 2
+      n_steps: 1
       buffer_size: 10e6
       tau_target: 0.005
       n_updates: 1
