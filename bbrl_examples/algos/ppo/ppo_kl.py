@@ -205,9 +205,9 @@ def run_ppo_v1(cfg):
         critic_loss = compute_critic_loss(
             advantage
         )  # issue here, can be used only once
-        loss_critic = cfg.algorithm.critic_coef * critic_loss
+        critic_loss = cfg.algorithm.critic_coef * critic_loss
         optimizer.zero_grad()
-        loss_critic.backward()
+        critic_loss.backward()
         optimizer.step()
 
         torch.nn.utils.clip_grad_norm_(
@@ -215,7 +215,6 @@ def run_ppo_v1(cfg):
         )
 
         policy = train_agent.agent.agents[1]
-        cpt = 0
 
         # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
@@ -239,8 +238,6 @@ def run_ppo_v1(cfg):
                 compute_entropy=True,
                 predict_proba=False,
             )
-            print(cpt)
-            cpt = cpt + 1
 
             # The logprob_predict Tensor has been computed on the old_policy outside the loop
             action_logp, old_action_logp, entropy = sample_workspace[
@@ -253,13 +250,6 @@ def run_ppo_v1(cfg):
             act_loss = compute_agent_loss(cfg, actor_advantage.detach(), ratios, kl)
             actor_loss = -cfg.algorithm.actor_coef * act_loss
 
-            optimizer.zero_grad()
-            actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                train_agent.parameters(), cfg.algorithm.max_grad_norm
-            )
-            optimizer.step()
-
             old_policy.copy_parameters(train_agent.agent.agents[1])
 
             # Entropy loss favors exploration
@@ -269,8 +259,10 @@ def run_ppo_v1(cfg):
             # Store the losses for tensorboard display
             logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
 
+            loss = actor_loss + entropy_loss
+
             optimizer.zero_grad()
-            entropy_loss.backward()
+            loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 train_agent.parameters(), cfg.algorithm.max_grad_norm
             )

@@ -14,18 +14,18 @@
             n_envs: 8
             n_steps: 100
             eval_interval: 2000
-            nb_evals: 10
+            nb_evals: 3
             gae: 0.95
             max_epochs: 21000
             discount_factor: 0.9
             clip_range: 0.2
             clip_range_vf: 0
-            critic_coef: 0.5
-            actor_coef: 0.5
-            entropy_coef: 0.01
+            critic_coef: 0.8
+            actor_coef: 0.1
+            entropy_coef: 0.2
             minibatch_size: 64
-            opt_epochs: 2
-            beta: 0.1
+            opt_epochs: 50
+            beta: 0.5
             architecture:
                   actor_hidden_size: [64, 64]
                   critic_hidden_size: [64, 64]
