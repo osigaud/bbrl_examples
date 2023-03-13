@@ -158,22 +158,23 @@ def run_ppo_v1(cfg):
             train_workspace.copy_n_last_steps(delta_t)
 
         # Run the train/old_train agents
-        train_agent(
-            train_workspace,
-            t=delta_t,
-            n_steps=cfg.algorithm.n_steps - delta_t,
-            stochastic=True,
-            predict_proba=False,
-            compute_entropy=False,
-        )
-        old_actor(
-            train_workspace,
-            t=delta_t,
-            n_steps=cfg.algorithm.n_steps - delta_t,
-            # Just computes the probability to get the ratio of probabilities
-            predict_proba=True,
-            compute_entropy=False,
-        )
+        with torch.no_grad():
+            train_agent(
+                train_workspace,
+                t=delta_t,
+                n_steps=cfg.algorithm.n_steps - delta_t,
+                stochastic=True,
+                predict_proba=False,
+                compute_entropy=False,
+            )
+            old_actor(
+                train_workspace,
+                t=delta_t,
+                n_steps=cfg.algorithm.n_steps - delta_t,
+                # Just computes the probability to get the ratio of probabilities
+                predict_proba=True,
+                compute_entropy=False,
+            )
 
         # Compute the critic value over the whole workspace
         critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
@@ -245,9 +246,6 @@ def run_ppo_v1(cfg):
             action_logp, old_action_logp, entropy = sample_workspace[
                 "action_logprobs", "logprob_predict", "entropy"
             ]
-            # print(sample_workspace["env/env_obs"])
-            # print(action_logp[0])
-            # print(old_action_logp[0])
 
             act_diff = action_logp[0] - old_action_logp[0].detach()
             ratios = act_diff.exp()
@@ -256,22 +254,19 @@ def run_ppo_v1(cfg):
             actor_loss = -cfg.algorithm.actor_coef * act_loss
 
             optimizer.zero_grad()
-            actor_loss.backward()  # retain_graph=True
+            actor_loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 train_agent.parameters(), cfg.algorithm.max_grad_norm
             )
-            optimizer.step()
 
             old_policy.copy_parameters(train_agent.agent.agents[1])
 
             # Entropy loss favors exploration
-            entr_loss = torch.mean(entropy[0])
+            entr_loss = entropy[0].mean()
             entropy_loss = -cfg.algorithm.entropy_coef * entr_loss
 
             # Store the losses for tensorboard display
             logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
-
-            optimizer.zero_grad()
             entropy_loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 train_agent.parameters(), cfg.algorithm.max_grad_norm

@@ -102,14 +102,15 @@ def run_ppo_v1(cfg):
             train_workspace.copy_n_last_steps(delta_t)
 
         # Run the train/old_train agents
-        train_agent(
-            train_workspace,
-            t=delta_t,
-            n_steps=cfg.algorithm.n_steps - delta_t,
-            stochastic=True,
-            predict_proba=False,
-            compute_entropy=False,
-        )
+        with torch.no_grad():
+            train_agent(
+                train_workspace,
+                t=delta_t,
+                n_steps=cfg.algorithm.n_steps - delta_t,
+                stochastic=True,
+                predict_proba=False,
+                compute_entropy=False,
+            )
         transition_workspace = train_workspace.get_transitions()
 
         policy = train_agent.agent.agents[1]
