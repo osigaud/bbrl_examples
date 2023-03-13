@@ -47,7 +47,10 @@ class ContinuousDeterministicActor(BaseActor):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(
-            layers, activation=nn.Tanh(), output_activation=nn.Tanh()
+            layers,
+            activation=nn.Tanh(),
+            output_activation=nn.Tanh()
+            # layers, activation=nn.ReLU(), output_activation=nn.ReLU()
         )
 
     def forward(self, t):

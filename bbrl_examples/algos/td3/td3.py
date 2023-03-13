@@ -212,27 +212,6 @@ def run_td3(cfg, reward_logger):
                 logger.add_log("critic_loss_2", critic_loss_2, nb_steps)
                 critic_loss = critic_loss_1 + critic_loss_2
 
-                # Actor update
-                # Now we determine the actions the current policy would take in the states from the RB
-                ag_actor(rb_workspace, t=0, n_steps=1)
-                # We determine the Q values resulting from actions of the current policy
-                # We arbitrarily chose to update the actor with respect to critic_1
-                # and we back-propagate the corresponding loss to maximize the Q values
-                q_agent_1(rb_workspace, t=0, n_steps=1)
-                q_values_1 = rb_workspace["q_value"]
-                q_agent_2(rb_workspace, t=0, n_steps=1)
-                q_values_2 = rb_workspace["q_value"]
-                current_q_values = torch.min(q_values_1, q_values_2).squeeze(-1)
-                actor_loss = compute_actor_loss(current_q_values)
-                logger.add_log("actor_loss", actor_loss, nb_steps)
-
-                # Actor update part ###################################################################
-                actor_optimizer.zero_grad()
-                actor_loss.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    actor.parameters(), cfg.algorithm.max_grad_norm
-                )
-                actor_optimizer.step()
                 # Critic update part ############################################################
                 critic_optimizer.zero_grad()
                 critic_loss.backward()
@@ -243,6 +222,29 @@ def run_td3(cfg, reward_logger):
                     critic_2.parameters(), cfg.algorithm.max_grad_norm
                 )
                 critic_optimizer.step()
+
+                # Actor update
+                # Now we determine the actions the current policy would take in the states from the RB
+                ag_actor(rb_workspace, t=0, n_steps=1)
+                # We determine the Q values resulting from actions of the current policy
+                # We arbitrarily chose to update the actor with respect to critic_1
+                # and we back-propagate the corresponding loss to maximize the Q values
+                q_agent_1(rb_workspace, t=0, n_steps=1)
+                q_values_1 = rb_workspace["q_value"]
+                # q_agent_2(rb_workspace, t=0, n_steps=1)
+                # q_values_2 = rb_workspace["q_value"]
+                current_q_values = q_values_1.squeeze(-1)
+                # current_q_values = torch.min(q_values_1, q_values_2).squeeze(-1)
+                actor_loss = compute_actor_loss(current_q_values)
+                logger.add_log("actor_loss", actor_loss, nb_steps)
+
+                # Actor update part ###################################################################
+                actor_optimizer.zero_grad()
+                actor_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    actor.parameters(), cfg.algorithm.max_grad_norm
+                )
+                actor_optimizer.step()
 
                 # Soft update of target q function
                 tau = cfg.algorithm.tau_target
