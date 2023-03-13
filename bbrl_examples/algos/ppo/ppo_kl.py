@@ -258,6 +258,7 @@ def run_ppo_v1(cfg):
             torch.nn.utils.clip_grad_norm_(
                 train_agent.parameters(), cfg.algorithm.max_grad_norm
             )
+            optimizer.step()
 
             old_policy.copy_parameters(train_agent.agent.agents[1])
 
@@ -267,6 +268,8 @@ def run_ppo_v1(cfg):
 
             # Store the losses for tensorboard display
             logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
+
+            optimizer.zero_grad()
             entropy_loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 train_agent.parameters(), cfg.algorithm.max_grad_norm
