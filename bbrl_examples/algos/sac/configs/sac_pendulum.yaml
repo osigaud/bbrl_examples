@@ -23,6 +23,7 @@
             discount_factor: 0.95
             entropy_coef: 1e-7
             target_entropy: auto
+            actor_type: SquashedGaussianActor
             architecture:
                   actor_hidden_size: [32, 32]
                   critic_hidden_size: [256, 256]

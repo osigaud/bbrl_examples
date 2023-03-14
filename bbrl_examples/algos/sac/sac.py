@@ -18,9 +18,10 @@ from bbrl.agents import Agents, TemporalAgent
 from bbrl_examples.models.loggers import Logger
 from bbrl.utils.replay_buffer import ReplayBuffer
 
-from bbrl_examples.models.actors import (
+from bbrl_examples.models.stochastic_actors import (
     SquashedGaussianActor,
     TunableVarianceContinuousActor,
+    DiscreteActor,
 )
 from bbrl_examples.models.critics import ContinuousQAgent
 from bbrl_examples.models.shared_models import soft_update_params
@@ -220,7 +221,7 @@ def run_sac(cfg):
             train_agent(
                 train_workspace,
                 t=1,
-                n_steps=cfg.algorithm.n_steps - 1,
+                n_steps=cfg.algorithm.n_steps,
                 stochastic=True,
                 predict_proba=False,
             )
