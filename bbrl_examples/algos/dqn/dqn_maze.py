@@ -96,13 +96,6 @@ def run_dqn_full(cfg, reward_logger):
         cfg.algorithm.n_envs,
         cfg.algorithm.seed,
     )
-    """
-    print(train_env_agent.is_continuous_action())
-    print(train_env_agent.is_discrete_action())
-    print(train_env_agent.action_space)
-    print(train_env_agent.is_continuous_state())
-    print(train_env_agent.is_discrete_state())
-    """
 
     eval_env_agent = NoAutoResetGymAgent(
         get_class(cfg.gym_env),
@@ -137,7 +130,7 @@ def run_dqn_full(cfg, reward_logger):
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
             train_agent(
-                train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True
+                train_workspace, t=1, n_steps=cfg.algorithm.n_steps, stochastic=True
             )
         else:
             train_agent(

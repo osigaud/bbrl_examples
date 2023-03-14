@@ -17,6 +17,7 @@
       critic_coef: 1
       actor_coef: 1
       gae: 0.8
+      actor_type: DiscreteActor
       architecture:
         actor_hidden_size: [25, 25]
         critic_hidden_size: [24, 36]

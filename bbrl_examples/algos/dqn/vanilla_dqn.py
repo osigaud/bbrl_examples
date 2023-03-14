@@ -109,7 +109,7 @@ def run_dqn_no_rb_no_target(cfg, reward_logger):
             train_workspace.zero_grad()
             train_workspace.copy_n_last_steps(1)
             train_agent(
-                train_workspace, t=1, n_steps=cfg.algorithm.n_steps - 1, stochastic=True
+                train_workspace, t=1, n_steps=cfg.algorithm.n_steps, stochastic=True
             )
         else:
             train_agent(

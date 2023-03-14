@@ -11,10 +11,10 @@ from bbrl.workspace import Workspace
 from bbrl.agents import Agents, TemporalAgent, PrintAgent
 from bbrl.agents.agent import Agent
 
-from bbrl_examples.models.actors import TunableVarianceContinuousActor
-from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
-from bbrl_examples.models.actors import ConstantVarianceContinuousActor
-from bbrl_examples.models.actors import DiscreteActor, BernoulliActor
+from bbrl_examples.models.stochastic_actors import TunableVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import StateDependentVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import ConstantVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import DiscreteActor, BernoulliActor
 from bbrl_examples.models.critics import VAgent
 from bbrl.agents.gymb import NoAutoResetGymAgent
 from bbrl.utils.functionalb import gae
@@ -59,16 +59,9 @@ def apply_discounted_sum_minus_baseline(cfg, reward, baseline):
 # Create the REINFORCE Agent
 def create_reinforce_agent(cfg, env_agent):
     obs_size, act_size = env_agent.get_obs_and_actions_sizes()
-    if env_agent.is_continuous_action():
-        action_agent = TunableVarianceContinuousActor(
-            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
-        )
-        # print_agent = PrintAgent(*{"critic", "env/reward", "env/done", "action", "env/env_obs"})
-    else:
-        # action_agent = BernoulliActor(obs_size, cfg.algorithm.architecture.hidden_size)
-        action_agent = DiscreteActor(
-            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
-        )
+    action_agent = action_agent = globals()[cfg.algorithm.actor_type](
+        obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
+    )
     # print_agent = PrintAgent()
     tr_agent = Agents(env_agent, action_agent)  # , print_agent)
 
@@ -153,7 +146,13 @@ def run_reinforce(cfg):
         # Configure the workspace to the right dimension.
         train_workspace = Workspace()
 
-        reinforce_agent(train_workspace, stochastic=True, t=0, stop_variable="env/done")
+        reinforce_agent(
+            train_workspace,
+            stochastic=True,
+            t=0,
+            stop_variable="env/done",
+            compute_entropy=True,
+        )
 
         # Get relevant tensors (size are timestep x n_envs x ....)
         obs, done, truncated, action_logprobs, reward, action = train_workspace[
@@ -230,7 +229,8 @@ def run_reinforce(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="reinforce_debugv.yaml",  # cartpole.yaml",  #
+    # config_name="reinforce_debugv.yaml",
+    config_name="reinforce_cartpole.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

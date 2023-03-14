@@ -11,10 +11,10 @@ from bbrl.workspace import Workspace
 from bbrl.agents import Agents, TemporalAgent, PrintAgent
 from bbrl.agents.agent import Agent
 
-from bbrl_examples.models.actors import ProbAgent, ActionAgent
-from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
-from bbrl_examples.models.actors import ConstantVarianceContinuousActor
-from bbrl_examples.models.actors import DiscreteActor, BernoulliActor
+from bbrl_examples.models.stochastic_actors import ProbAgent, ActionAgent
+from bbrl_examples.models.stochastic_actors import StateDependentVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import ConstantVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import DiscreteActor, BernoulliActor
 from bbrl_examples.models.critics import VAgent
 from bbrl.agents.gymb import NoAutoResetGymAgent
 from bbrl.utils.functionalb import gae
