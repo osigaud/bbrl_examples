@@ -23,6 +23,7 @@
             opt_epochs: 1
             clip_range: 0.2
             clip_range_vf: 0
+            actor_type: ConstantVarianceContinuousActor
             architecture:
                   actor_hidden_size: [64]
                   critic_hidden_size: [64]

@@ -20,6 +20,7 @@
             entropy_coef: 2.55e-4
             critic_coef: 0.5
             a2c_coef: 1
+            actor_type: DiscreteActor
             architecture:
                   actor_hidden_size: [24, 36]
                   critic_hidden_size: [24, 36]

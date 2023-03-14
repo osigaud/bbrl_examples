@@ -21,6 +21,7 @@
       clip_range_vf: 0
       minibatch_size: 64
       opt_epochs: 1
+      actor_type: ConstantVarianceContinuousActor
       architecture:
         actor_hidden_size: [24, 36]
         critic_hidden_size: [24, 36]

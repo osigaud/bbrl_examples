@@ -9,21 +9,20 @@
 
       algorithm:
             seed: 5
-            nb_seeds: 1
             max_grad_norm: 0.5
             n_envs: 8
             n_steps: 100
-            eval_interval: 2000
-            nb_evals: 3
+            eval_interval: 1000
+            nb_evals: 10
             gae: 0.8
-            max_epochs: 21000
+            max_epochs: 50000
             discount_factor: 0.95
             clip_range: 0.2
             clip_range_vf: 0
             entropy_coef: 2.55e-7
             critic_coef: 0.4
             actor_coef: 1
-            minibatch_size: 100
+            minibatch_size: 0
             opt_epochs: 1
             beta: 0.0
             actor_type: ConstantVarianceContinuousActor

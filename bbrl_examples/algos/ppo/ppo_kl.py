@@ -246,7 +246,7 @@ def run_ppo_v1(cfg):
             act_loss = compute_agent_loss(cfg, actor_advantage.detach(), ratios, kl)
             actor_loss = -cfg.algorithm.actor_coef * act_loss
 
-            old_policy.copy_parameters(train_agent.agent.agents[1])
+            old_policy.copy_parameters(policy)
 
             # Entropy loss favors exploration
             entr_loss = entropy[0].mean()
