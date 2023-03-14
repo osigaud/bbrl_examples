@@ -36,9 +36,10 @@ from bbrl_examples.models.envs import create_env_agents
 
 # Neural network models for actors and critics
 from bbrl_examples.models.stochastic_actors import TunableVarianceContinuousActor
-
-# from bbrl_examples.models.stochastic_actors import StateDependentVarianceContinuousActor
-from bbrl_examples.models.stochastic_actors import DiscreteActor
+from bbrl_examples.models.stochastic_actors import SquashedGaussianActor
+from bbrl_examples.models.stochastic_actors import StateDependentVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import ConstantVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import DiscreteActor, BernoulliActor
 from bbrl_examples.models.critics import VAgent
 
 # This one is specific to PPO, it is used to compute the KL divergence between the current and the past policy
@@ -62,14 +63,9 @@ def make_gym_env(env_name):
 # Create the PPO Agent
 def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
-    if train_env_agent.is_continuous_action():
-        policy = TunableVarianceContinuousActor(
-            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
-        )
-    else:
-        policy = DiscreteActor(
-            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
-        )
+    policy = globals()[cfg.algorithm.actor_type](
+        obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
+    )
     tr_agent = Agents(train_env_agent, policy)
     ev_agent = Agents(eval_env_agent, policy)
 

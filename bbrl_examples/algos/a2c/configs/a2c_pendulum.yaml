@@ -23,7 +23,8 @@
       a2c_coef: 1
       actor_type: ConstantVarianceContinuousActor
       architecture:
-        hidden_size: [64, 64]
+        actor_hidden_size: [64, 64]
+        critic_hidden_size: [64, 64]
 
     gym_env:
       classname: __main__.make_gym_env

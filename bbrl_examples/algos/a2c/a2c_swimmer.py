@@ -17,11 +17,11 @@ import hydra
 import torch
 import torch.nn as nn
 
-from bbrl_examples.models.actors import TunableVarianceContinuousActor
-from bbrl_examples.models.actors import SquashedGaussianActor
-from bbrl_examples.models.actors import StateDependentVarianceContinuousActor
-from bbrl_examples.models.actors import ConstantVarianceContinuousActor
-from bbrl_examples.models.actors import DiscreteActor, BernoulliActor
+from bbrl_examples.models.stochastic_actors import TunableVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import SquashedGaussianActor
+from bbrl_examples.models.stochastic_actors import StateDependentVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import ConstantVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import DiscreteActor, BernoulliActor
 from bbrl_examples.models.critics import VAgent
 from bbrl.agents.gymb import AutoResetGymAgent, NoAutoResetGymAgent
 from bbrl_examples.models.loggers import Logger
@@ -40,21 +40,14 @@ matplotlib.use("TkAgg")
 # Create the A2C Agent
 def create_a2c_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
-    if train_env_agent.is_continuous_action():
-        action_agent = TunableVarianceContinuousActor(
-            obs_size, cfg.algorithm.architecture.hidden_size, act_size
-        )
-        # print_agent = PrintAgent(*{"critic", "env/reward", "env/done", "action", "env/env_obs"})
-    else:
-        # action_agent = BernoulliActor(obs_size, cfg.algorithm.architecture.hidden_size)
-        action_agent = DiscreteActor(
-            obs_size, cfg.algorithm.architecture.hidden_size, act_size
-        )
+    action_agent = globals()[cfg.algorithm.actor_type](
+        obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
+    )
     tr_agent = Agents(train_env_agent, action_agent)
     ev_agent = Agents(eval_env_agent, action_agent)
 
     critic_agent = TemporalAgent(
-        VAgent(obs_size, cfg.algorithm.architecture.hidden_size)
+        VAgent(obs_size, cfg.algorithm.architecture.critic_hidden_size)
     )
 
     # Get an agent that is executed on a complete workspace

@@ -342,18 +342,25 @@ class ConstantVarianceContinuousActor(BaseActor):
         mean = self.model(obs)
         return Normal(mean, self.std_param)
 
-    def forward(self, t, stochastic=False, **kwargs):
+    def forward(
+        self, t, predict_proba=False, compute_entropy=False, stochastic=False, **kwargs
+    ):
         obs = self.get(("env/env_obs", t))
         mean = self.model(obs)
         dist = Normal(mean, self.std_param)  # std must be positive
         self.set(("entropy", t), dist.entropy())
-        if stochastic:
-            action = dist.sample()
+
+        if predict_proba:
+            action = self.get(("action", t))
+            self.set(("logprob_predict", t), dist.log_prob(action))
         else:
-            action = mean
-        log_prob = dist.log_prob(action).sum(axis=-1)
-        self.set(("action", t), action)
-        self.set(("action_logprobs", t), log_prob)
+            if stochastic:
+                action = dist.sample()
+            else:
+                action = mean
+            log_prob = dist.log_prob(action).sum(axis=-1)
+            self.set(("action", t), action)
+            self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic=False):
         """Predict just one action (without using the workspace)"""

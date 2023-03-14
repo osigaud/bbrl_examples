@@ -21,7 +21,8 @@
             critic_coef: 0.5
             a2c_coef: 1
             architecture:
-                  hidden_size: [24, 36]
+                  actor_hidden_size: [24, 36]
+                  critic_hidden_size: [24, 36]
 
       gym_env:
             classname: __main__.make_gym_env
