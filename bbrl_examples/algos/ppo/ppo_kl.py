@@ -18,7 +18,6 @@ from bbrl.utils.functionalb import gae
 from bbrl_examples.models.loggers import Logger
 from bbrl.utils.chrono import Chrono
 
-
 # The workspace is the main class in BBRL, this is where all data is collected and stored
 from bbrl.workspace import Workspace
 
@@ -42,14 +41,13 @@ from bbrl_examples.models.stochastic_actors import ConstantVarianceContinuousAct
 from bbrl_examples.models.stochastic_actors import DiscreteActor, BernoulliActor
 from bbrl_examples.models.critics import VAgent
 
-# This one is specific to PPO, it is used to compute the KL divergence between the current and the past policy
+# The KLAgent is specific to the KL regularization version of PPO
+# It is used to compute the KL divergence between the current and the past policy
 from bbrl_examples.models.exploration_agents import KLAgent
-
 
 # Allow to display a policy and a critic as a 2D map
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
-
 
 import matplotlib
 
@@ -137,6 +135,10 @@ def run_ppo_v1(cfg):
     ) = create_ppo_agent(cfg, train_env_agent, eval_env_agent)
 
     old_actor = TemporalAgent(old_policy)
+    policy = train_agent.agent.agents[
+        1
+    ]  # It seems that we can call the policy as if it was a temporal agent
+
     train_workspace = Workspace()
 
     # Configure the optimizer
@@ -151,7 +153,7 @@ def run_ppo_v1(cfg):
         if epoch > 0:
             train_workspace.zero_grad()
             delta_t = 1
-            train_workspace.copy_n_last_steps(delta_t)
+            train_workspace.copy_n_last_steps(1)
 
         # Run the train/old_train agents
         with torch.no_grad():
@@ -177,10 +179,6 @@ def run_ppo_v1(cfg):
 
         transition_workspace = train_workspace.get_transitions()
 
-        action = transition_workspace["action"]
-
-        nb_steps += action[0].shape[0]
-
         done, truncated, reward, action, v_value = transition_workspace[
             "env/done",
             "env/truncated",
@@ -188,6 +186,7 @@ def run_ppo_v1(cfg):
             "action",
             "v_value",
         ]
+        nb_steps += action[0].shape[0]
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
@@ -209,8 +208,6 @@ def run_ppo_v1(cfg):
         torch.nn.utils.clip_grad_norm_(
             critic_agent.parameters(), cfg.algorithm.max_grad_norm
         )
-
-        policy = train_agent.agent.agents[1]
 
         # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):

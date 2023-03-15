@@ -16,6 +16,7 @@ from bbrl import get_arguments, get_class
 from bbrl.utils.functionalb import gae
 
 from bbrl_examples.models.loggers import Logger
+from bbrl.utils.chrono import Chrono
 
 # The workspace is the main class in BBRL, this is where all data is collected and stored
 from bbrl.workspace import Workspace
@@ -32,33 +33,33 @@ from bbrl.agents import Agents, TemporalAgent
 # At timestep t>0, these agents will read the ’action’ variable in the workspace at time t − 1
 from bbrl_examples.models.envs import create_env_agents
 
-# Allow to display the behavior of an agent
-from bbrl_examples.models.actors import TunableVarianceContinuousActor
-from bbrl_examples.models.actors import DiscreteActor
+# Neural network models for actors and critics
+from bbrl_examples.models.stochastic_actors import TunableVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import SquashedGaussianActor
+from bbrl_examples.models.stochastic_actors import StateDependentVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import ConstantVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import DiscreteActor, BernoulliActor
 from bbrl_examples.models.critics import VAgent
 
-from bbrl.utils.chrono import Chrono
-
+# Allow to display a policy and a critic as a 2D map
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
+
+import matplotlib
+
+matplotlib.use("TkAgg")
 
 
 def make_gym_env(env_name):
     return gym.make(env_name)
 
 
+# Create the PPO Agent
 def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
-
-    if train_env_agent.is_continuous_action():
-        policy = TunableVarianceContinuousActor(
-            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
-        )
-    else:
-        policy = DiscreteActor(
-            obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
-        )
-
+    policy = globals()[cfg.algorithm.actor_type](
+        obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
+    )
     tr_agent = Agents(train_env_agent, policy)
     ev_agent = Agents(eval_env_agent, policy)
 
@@ -73,7 +74,7 @@ def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     old_policy = copy.deepcopy(policy)
     old_critic_agent = copy.deepcopy(critic_agent)
 
-    return policy, train_agent, eval_agent, critic_agent, old_policy, old_critic_agent
+    return train_agent, eval_agent, critic_agent, old_policy, old_critic_agent
 
 
 def setup_optimizer(cfg, action_agent, critic_agent):
@@ -121,7 +122,6 @@ def run_ppo_v2(cfg):
     train_env_agent, eval_env_agent = create_env_agents(cfg)
 
     (
-        policy,
         train_agent,
         eval_agent,
         critic_agent,
@@ -129,12 +129,15 @@ def run_ppo_v2(cfg):
         old_critic_agent,
     ) = create_ppo_agent(cfg, train_env_agent, eval_env_agent)
 
-    actor = TemporalAgent(policy)
     old_actor = TemporalAgent(old_policy)
+    policy = train_agent.agent.agents[
+        1
+    ]  # It seems that we can call the policy as if it was a temporal agent
+
     train_workspace = Workspace()
 
     # Configure the optimizer
-    optimizer = setup_optimizer(cfg, policy, critic_agent)
+    optimizer = setup_optimizer(cfg, train_agent, critic_agent)
 
     # Training loop
     for epoch in range(cfg.algorithm.max_epochs):
@@ -145,24 +148,26 @@ def run_ppo_v2(cfg):
         if epoch > 0:
             train_workspace.zero_grad()
             delta_t = 1
-            train_workspace.copy_n_last_steps(delta_t)
+            train_workspace.copy_n_last_steps(1)
 
         # Run the train/old_train agents
-        train_agent(
-            train_workspace,
-            t=delta_t,
-            n_steps=cfg.algorithm.n_steps - delta_t,
-            stochastic=True,
-            predict_proba=False,
-            compute_entropy=True,
-        )
-        old_actor(
-            train_workspace,
-            t=delta_t,
-            n_steps=cfg.algorithm.n_steps - delta_t,
-            # Just computes the probability to get the ratio of probabilities
-            predict_proba=True,
-        )
+        with torch.no_grad():
+            train_agent(
+                train_workspace,
+                t=delta_t,
+                n_steps=cfg.algorithm.n_steps - delta_t,
+                stochastic=True,
+                predict_proba=False,
+                compute_entropy=False,
+            )
+            old_actor(
+                train_workspace,
+                t=delta_t,
+                n_steps=cfg.algorithm.n_steps - delta_t,
+                # Just computes the probability to get the ratio of probabilities
+                predict_proba=True,
+                compute_entropy=False,
+            )
 
         # Compute the critic value over the whole workspace
         critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
@@ -213,13 +218,13 @@ def run_ppo_v2(cfg):
         # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
             if cfg.algorithm.minibatch_size > 0:
-                sample_workspace = transition_workspace.sample_subworkspace(
-                    1, cfg.algorithm.minibatch_size, 2
+                sample_workspace = transition_workspace.select_batch_n(
+                    cfg.algorithm.minibatch_size
                 )
             else:
                 sample_workspace = transition_workspace
 
-            actor(
+            policy(
                 sample_workspace,
                 t=0,
                 n_steps=1,
@@ -257,29 +262,6 @@ def run_ppo_v2(cfg):
 
             old_policy.copy_parameters(policy)
             old_critic_agent = copy.deepcopy(critic_agent)
-
-            # [[remove]]
-            # Compute approximate form of reverse KL Divergence for early stopping
-            # see issue #417: https://github.com/DLR-RM/stable-baselines3/issues/417
-            # and discussion in PR #419: https://github.com/DLR-RM/stable-baselines3/pull/419
-            # and Schulman blog: http://joschu.net/blog/kl-approx.html
-            """
-            with torch.no_grad():
-                log_ratio = log_prob - rollout_data.old_log_prob
-                approx_kl_div = (
-                    torch.mean((torch.exp(log_ratio) - 1) - log_ratio).cpu().numpy()
-                )
-                approx_kl_divs.append(approx_kl_div)
-
-            if cfg.algorithm.target_kl is not None and approx_kl_div > 1.5 * cfg.algorithm.target_kl:
-                continue_training = False
-                if cfg.logger.verbose == True:
-                    print(
-                        f"Early stopping at step {epoch} due to reaching max kl: {approx_kl_div:.2f}"
-                    )
-                break
-            """
-            # [[/remove]]
 
             optimizer.zero_grad()
             loss_critic.backward()  # retain_graph=True)
@@ -343,10 +325,10 @@ def run_ppo_v2(cfg):
 
 @hydra.main(
     config_path="./configs/",
-    config_name="ppo_lunarlander_continuous.yaml",
+    # config_name="ppo_lunarlander_continuous.yaml",
     # config_name="ppo_lunarlander.yaml",
     # config_name="ppo_swimmer.yaml",
-    # config_name="ppo_pendulum.yaml",
+    config_name="ppo_pendulum.yaml",
     # config_name="ppo_cartpole.yaml",
     version_base="1.1",
 )
