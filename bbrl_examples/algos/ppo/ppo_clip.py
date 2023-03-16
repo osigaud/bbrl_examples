@@ -77,9 +77,9 @@ def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     return train_agent, eval_agent, critic_agent, old_policy, old_critic_agent
 
 
-def setup_optimizer(cfg, action_agent, critic_agent):
+def setup_optimizer(cfg, actor, critic):
     optimizer_args = get_arguments(cfg.optimizer)
-    parameters = nn.Sequential(action_agent, critic_agent).parameters()
+    parameters = nn.Sequential(actor, critic).parameters()
     optimizer = get_class(cfg.optimizer)(parameters, **optimizer_args)
     return optimizer
 
@@ -179,6 +179,7 @@ def run_ppo_clip(cfg):
         critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps - delta_t)
 
         transition_workspace = train_workspace.get_transitions()
+
         done, truncated, reward, action, v_value = transition_workspace[
             "env/done",
             "env/truncated",
@@ -186,7 +187,6 @@ def run_ppo_clip(cfg):
             "action",
             "v_value",
         ]
-
         nb_steps += action[0].shape[0]
 
         # Determines whether values of the critic should be propagated
@@ -211,8 +211,7 @@ def run_ppo_clip(cfg):
         advantage = compute_advantage(cfg, reward, must_bootstrap, v_value)
 
         # We store the advantage into the transition_workspace
-        transition_workspace.set("advantage", 0, advantage)
-        transition_workspace.set("advantage", 1, torch.zeros_like(advantage))
+        transition_workspace.set_full("advantage", advantage)
 
         # We rename logprob_predict data into old_action_logprobs
         # We do so because we will rewrite in the logprob_predict variable in mini_batches
@@ -221,6 +220,16 @@ def run_ppo_clip(cfg):
         )
 
         transition_workspace.clear("logprob_predict")
+
+        critic_loss = compute_critic_loss(advantage)
+        loss_critic = cfg.algorithm.critic_coef * critic_loss
+
+        optimizer.zero_grad()
+        loss_critic.backward()
+        torch.nn.utils.clip_grad_norm_(
+            critic_agent.parameters(), cfg.algorithm.max_grad_norm
+        )
+        optimizer.step()
 
         # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
@@ -232,8 +241,8 @@ def run_ppo_clip(cfg):
                 sample_workspace = transition_workspace
 
             # Compute the probability of the played actions according to the current policy
-            # We do not need to replay the action because it was already written in the external loop
-            # But recomputing it (using predict_proba=False and stoachstic=True) should be the same at the first time in the loop
+            # We do not replay the action: we use the one stored into the dataset
+            # Hence predict_proba=True
             policy(
                 sample_workspace,
                 t=0,
@@ -246,9 +255,6 @@ def run_ppo_clip(cfg):
             advantage, action_logp, old_action_logp, entropy = sample_workspace[
                 "advantage", "logprob_predict", "old_action_logprobs", "entropy"
             ]
-
-            critic_loss = compute_critic_loss(advantage)
-            loss_critic = cfg.algorithm.critic_coef * critic_loss
 
             act_diff = action_logp[0] - old_action_logp[0].detach()
             ratios = act_diff.exp()
@@ -263,17 +269,14 @@ def run_ppo_clip(cfg):
 
             # Store the losses for tensorboard display
             logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
+            logger.add_log("advantage", advantage.mean(), nb_steps)
 
             loss = loss_actor + loss_entropy
 
             optimizer.zero_grad()
-            loss_critic.backward()  # retain_graph=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(
-                critic_agent.parameters(), cfg.algorithm.max_grad_norm
-            )
-            torch.nn.utils.clip_grad_norm_(
-                train_agent.parameters(), cfg.algorithm.max_grad_norm
+                policy.parameters(), cfg.algorithm.max_grad_norm
             )
             optimizer.step()
 
@@ -336,6 +339,7 @@ def run_ppo_clip(cfg):
     # config_name="ppo_swimmer.yaml",
     config_name="ppo_pendulum.yaml",
     # config_name="ppo_cartpole.yaml",
+    # config_name="ppo_cartpole_continuous.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):
