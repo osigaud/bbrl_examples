@@ -168,7 +168,7 @@ class TunableVarianceContinuousActor(BaseActor):
     def get_distribution(self, obs: torch.Tensor):
         mean = self.model(obs)
         # std must be positive
-        return Independent(Normal(mean, self.soft_plus(self.std_param[:, 0])), 1)
+        return Independent(Normal(mean, self.soft_plus(self.std_param[:, 0])), 1), mean
 
     def forward(
         self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
@@ -180,8 +180,7 @@ class TunableVarianceContinuousActor(BaseActor):
         Otherwise, it writes the new action
         """
         obs = self.get(("env/env_obs", t))
-        mean = self.model(obs)
-        dist = Independent(Normal(mean, self.soft_plus(self.std_param[:, 0])), 1)
+        dist, mean = self.get_distribution(obs)
 
         if compute_entropy:
             self.set(("entropy", t), dist.entropy())
@@ -201,12 +200,11 @@ class TunableVarianceContinuousActor(BaseActor):
 
     def predict_action(self, obs, stochastic=False):
         """Predict just one action (without using the workspace)"""
+        dist, mean = self.get_distribution(obs)
         if stochastic:
-            mean = self.model(obs)
-            dist = Independent(Normal(mean, self.soft_plus(self.std_param[:, 0])), 1)
             return dist.sample()
         else:
-            return self.model(obs)
+            return mean
 
 
 class TunableVarianceContinuousActorExp(BaseActor):
@@ -224,7 +222,7 @@ class TunableVarianceContinuousActorExp(BaseActor):
     def get_distribution(self, obs: torch.Tensor):
         mean = self.model(obs)
         std = torch.clamp(self.std_param, -20, 2)
-        return Independent(Normal(mean, torch.exp(std)), 1)
+        return Independent(Normal(mean, torch.exp(std)), 1), mean
 
     def forward(
         self,
@@ -242,7 +240,7 @@ class TunableVarianceContinuousActorExp(BaseActor):
         Otherwise, it writes the new action
         """
         obs = self.get(("env/env_obs", t))
-        dist = self.get_distribution(obs)
+        dist, mean = self.get_distribution(obs)
 
         if compute_entropy:
             self.set(("entropy", t), dist.entropy())
@@ -251,7 +249,7 @@ class TunableVarianceContinuousActorExp(BaseActor):
             action = self.get(("action", t))
             self.set(("logprob_predict", t), dist.log_prob(action))
         else:
-            action = dist.sample() if stochastic else dist.mean
+            action = dist.sample() if stochastic else mean
             logp_pi = dist.log_prob(action)
 
             self.set(("action", t), action)
@@ -260,12 +258,10 @@ class TunableVarianceContinuousActorExp(BaseActor):
     def predict_action(self, obs, stochastic):
         """Predict just one action (without using the workspace)"""
         if stochastic:
-            mean = self.model(obs)
-            std = torch.clamp(self.std_param, -20, 2)
-            dist = Independent(Normal(mean, torch.exp(std)), 1)
+            dist, mean = self.get_distribution(obs)
             return dist.sample()
         else:
-            return self.model(obs)
+            return mean
 
 
 class StateDependentVarianceContinuousActor(BaseActor):
@@ -283,7 +279,7 @@ class StateDependentVarianceContinuousActor(BaseActor):
         mean = self.last_mean_layer(backbone_output)
         std_out = self.last_std_layer(backbone_output)
         std = torch.exp(std_out)
-        return Independent(Normal(mean, std), 1)
+        return Independent(Normal(mean, std), 1), mean
 
     def forward(
         self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
@@ -295,11 +291,7 @@ class StateDependentVarianceContinuousActor(BaseActor):
         Otherwise, it writes the new action
         """
         obs = self.get(("env/env_obs", t))
-        backbone_output = self.backbone(obs)
-        mean = self.last_mean_layer(backbone_output)
-        std_out = self.last_std_layer(backbone_output)
-        std = torch.exp(std_out)
-        dist = Independent(Normal(mean, std), 1)
+        dist, mean = self.get_distribution(obs)
 
         if compute_entropy:
             self.set(("entropy", t), dist.entropy())
@@ -318,12 +310,7 @@ class StateDependentVarianceContinuousActor(BaseActor):
 
     def predict_action(self, obs, stochastic=False):
         """Predict just one action (without using the workspace)"""
-        backbone_output = self.backbone(obs)
-        mean = self.last_mean_layer(backbone_output)
-        std_out = self.last_std_layer(backbone_output)
-        std = torch.exp(std_out)
-        assert not torch.any(torch.isnan(mean)), "Nan Here"
-        dist = Independent(Normal(mean, std), 1)
+        dist, mean = self.get_distribution(obs)
         if stochastic:
             action = dist.sample()
         else:
@@ -340,14 +327,13 @@ class ConstantVarianceContinuousActor(BaseActor):
 
     def get_distribution(self, obs: torch.Tensor):
         mean = self.model(obs)
-        return Normal(mean, self.std_param)
+        return Normal(mean, self.std_param), mean
 
     def forward(
         self, t, predict_proba=False, compute_entropy=False, stochastic=False, **kwargs
     ):
         obs = self.get(("env/env_obs", t))
-        mean = self.model(obs)
-        dist = Normal(mean, self.std_param)  # std must be positive
+        dist, mean = self.get_distribution(obs)
         self.set(("entropy", t), dist.entropy())
 
         if predict_proba:
@@ -364,8 +350,7 @@ class ConstantVarianceContinuousActor(BaseActor):
 
     def predict_action(self, obs, stochastic=False):
         """Predict just one action (without using the workspace)"""
-        mean = self.model(obs)
-        dist = Normal(mean, self.std_param)
+        dist, mean = self.get_distribution(obs)
         if stochastic:
             action = dist.sample()
         else:

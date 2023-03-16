@@ -66,13 +66,13 @@ def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     critic_agent = TemporalAgent(
         VAgent(obs_size, cfg.algorithm.architecture.critic_hidden_size)
     )
+    old_critic_agent = copy.deepcopy(critic_agent)
 
     train_agent = TemporalAgent(tr_agent)
     eval_agent = TemporalAgent(ev_agent)
     train_agent.seed(cfg.algorithm.seed)
 
     old_policy = copy.deepcopy(policy)
-    old_critic_agent = copy.deepcopy(critic_agent)
 
     return train_agent, eval_agent, critic_agent, old_policy, old_critic_agent
 
@@ -102,7 +102,7 @@ def compute_critic_loss(advantage):
     return critic_loss
 
 
-def compute_clip_agent_loss(cfg, advantage, ratio):
+def compute_clip_actor_loss(cfg, advantage, ratio):
     """Computes the PPO CLIP loss"""
     clip_range = cfg.algorithm.clip_range
 
@@ -112,7 +112,7 @@ def compute_clip_agent_loss(cfg, advantage, ratio):
     return actor_loss
 
 
-def run_ppo_v2(cfg):
+def run_ppo_clip(cfg):
     # 1)  Build the  logger
     logger = Logger(cfg)
     best_reward = -10e9
@@ -129,10 +129,10 @@ def run_ppo_v2(cfg):
         old_critic_agent,
     ) = create_ppo_agent(cfg, train_env_agent, eval_env_agent)
 
+    # It seems that we can call the policy as if it was a temporal agent
+    policy = train_agent.agent.agents[1]
+    # This is not true of the old_policy, because it was not wrapped into a TemporalAgent before
     old_actor = TemporalAgent(old_policy)
-    policy = train_agent.agent.agents[
-        1
-    ]  # It seems that we can call the policy as if it was a temporal agent
 
     train_workspace = Workspace()
 
@@ -150,7 +150,12 @@ def run_ppo_v2(cfg):
             delta_t = 1
             train_workspace.copy_n_last_steps(1)
 
-        # Run the train/old_train agents
+        # Run the curren actor and evaluate the proba of its action according to the old actor
+        # The old_actor can be run after the train_agent on the same workspace
+        # because it writes a logprob_predict and not an action.
+        # That is, it does not determine the action of the old_actor,
+        # it just determines the proba of the action of the current actor given its own probabilities
+
         with torch.no_grad():
             train_agent(
                 train_workspace,
@@ -164,21 +169,21 @@ def run_ppo_v2(cfg):
                 train_workspace,
                 t=delta_t,
                 n_steps=cfg.algorithm.n_steps - delta_t,
-                # Just computes the probability to get the ratio of probabilities
+                # Just computes the probability of the current actor's action
+                # to get the ratio of probabilities
                 predict_proba=True,
                 compute_entropy=False,
             )
 
         # Compute the critic value over the whole workspace
-        critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
+        critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps - delta_t)
 
         transition_workspace = train_workspace.get_transitions()
-        done, truncated, reward, action, action_logp, v_value = transition_workspace[
+        done, truncated, reward, action, v_value = transition_workspace[
             "env/done",
             "env/truncated",
             "env/reward",
             "action",
-            "action_logprobs",
             "v_value",
         ]
 
@@ -208,11 +213,13 @@ def run_ppo_v2(cfg):
         # We store the advantage into the transition_workspace
         transition_workspace.set("advantage", 0, advantage)
         transition_workspace.set("advantage", 1, torch.zeros_like(advantage))
+
         # We rename logprob_predict data into old_action_logprobs
         # We do so because we will rewrite in the logprob_predict variable in mini_batches
         transition_workspace.set_full(
             "old_action_logprobs", transition_workspace["logprob_predict"].detach()
         )
+
         transition_workspace.clear("logprob_predict")
 
         # We start several optimization epochs on mini_batches
@@ -224,6 +231,9 @@ def run_ppo_v2(cfg):
             else:
                 sample_workspace = transition_workspace
 
+            # Compute the probability of the played actions according to the current policy
+            # We do not need to replay the action because it was already written in the external loop
+            # But recomputing it (using predict_proba=False and stoachstic=True) should be the same at the first time in the loop
             policy(
                 sample_workspace,
                 t=0,
@@ -232,36 +242,29 @@ def run_ppo_v2(cfg):
                 predict_proba=True,
             )
 
+            # The logprob_predict Tensor has been computed from the old_policy outside the loop
             advantage, action_logp, old_action_logp, entropy = sample_workspace[
                 "advantage", "logprob_predict", "old_action_logprobs", "entropy"
             ]
 
-            critic_loss = compute_critic_loss(
-                advantage
-            )  # issue here, can be used only once
-            adv_actor = advantage.detach().squeeze(0)[0]
-            act_diff = action_logp[0] - old_action_logp[0]
-            ratios = act_diff.exp()
-
-            actor_loss = compute_clip_agent_loss(cfg, adv_actor, ratios)
-
-            # Entropy loss favor exploration
-            entropy_loss = torch.mean(entropy[0])
-
-            # Store the losses for tensorboard display
-            if opt_epoch == 0:
-                # Just for the first epoch
-                logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
-
+            critic_loss = compute_critic_loss(advantage)
             loss_critic = cfg.algorithm.critic_coef * critic_loss
 
-            loss = (
-                -cfg.algorithm.actor_coef * actor_loss
-                - cfg.algorithm.entropy_coef * entropy_loss
-            )
+            act_diff = action_logp[0] - old_action_logp[0].detach()
+            ratios = act_diff.exp()
 
-            old_policy.copy_parameters(policy)
-            old_critic_agent = copy.deepcopy(critic_agent)
+            actor_advantage = advantage.detach().squeeze(0)[0]
+            actor_loss = compute_clip_actor_loss(cfg, actor_advantage, ratios)
+            loss_actor = -cfg.algorithm.actor_coef * actor_loss
+
+            # Entropy loss favors exploration
+            entropy_loss = entropy[0].mean()
+            loss_entropy = -cfg.algorithm.entropy_coef * entropy_loss
+
+            # Store the losses for tensorboard display
+            logger.log_losses(nb_steps, critic_loss, entropy_loss, actor_loss)
+
+            loss = loss_actor + loss_entropy
 
             optimizer.zero_grad()
             loss_critic.backward()  # retain_graph=True)
@@ -274,7 +277,10 @@ def run_ppo_v2(cfg):
             )
             optimizer.step()
 
-            # Evaluate if enough steps have been performed
+        old_policy.copy_parameters(policy)
+        old_critic_agent = copy.deepcopy(critic_agent)
+
+        # Evaluate if enough steps have been performed
         if nb_steps - tmp_steps > cfg.algorithm.eval_interval:
             tmp_steps = nb_steps
             eval_workspace = Workspace()  # Used for evaluation
@@ -336,7 +342,7 @@ def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
     torch.manual_seed(cfg.algorithm.seed)
     chrono = Chrono()
-    run_ppo_v2(cfg)
+    run_ppo_clip(cfg)
     chrono.stop()
 
 
