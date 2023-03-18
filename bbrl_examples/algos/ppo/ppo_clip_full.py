@@ -211,6 +211,8 @@ def run_ppo_clip(cfg):
 
         # We store the advantage into the transition_workspace
         transition_workspace.set_full("advantage", advantage)
+        # In principle, adding the next time step is not necessary as it is not used,
+        # but we include it becuase sometimes the workspace checks that all variables have the same shape
         transition_workspace.set("advantage", 1, advantage.squeeze(0))
 
         # We rename logprob_predict data into old_action_logprobs
