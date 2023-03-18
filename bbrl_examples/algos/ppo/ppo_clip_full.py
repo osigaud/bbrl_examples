@@ -24,7 +24,7 @@ from bbrl.workspace import Workspace
 # Agents(agent1,agent2,agent3,...) executes the different agents the one after the other
 # TemporalAgent(agent) executes an agent over multiple timesteps in the workspace,
 # or until a given condition is reached
-from bbrl.agents import Agents, TemporalAgent
+from bbrl.agents import Agents, TemporalAgent, PrintAgent
 
 # AutoResetGymAgent is an agent able to execute a batch of gym environments
 # with auto-resetting. These agents produce multiple variables in the workspace:
@@ -120,7 +120,6 @@ def run_ppo_clip(cfg):
     tmp_steps = 0
 
     train_env_agent, eval_env_agent = create_env_agents(cfg)
-
     (
         train_agent,
         eval_agent,
@@ -129,9 +128,9 @@ def run_ppo_clip(cfg):
         old_critic_agent,
     ) = create_ppo_agent(cfg, train_env_agent, eval_env_agent)
 
-    # It seems that we can call the policy as if it was a temporal agent
+    # We can call the policy instead of a temporal agent because we run on transitions
     policy = train_agent.agent.agents[1]
-    # This is not true of the old_policy, because it was not wrapped into a TemporalAgent before
+    # This is not true of the old_policy, because it works on the train_workspace
     old_actor = TemporalAgent(old_policy)
 
     train_workspace = Workspace()
@@ -232,10 +231,13 @@ def run_ppo_clip(cfg):
         optimizer.step()
 
         # We start several optimization epochs on mini_batches
+        batch_size = int(cfg.algorithm.n_steps / cfg.algorithm.opt_epochs)
         for opt_epoch in range(cfg.algorithm.opt_epochs):
-            if cfg.algorithm.minibatch_size > 0:
-                sample_workspace = transition_workspace.select_batch_n(
-                    cfg.algorithm.minibatch_size
+            if cfg.algorithm.opt_epochs > 0:
+                from_time = opt_epoch * batch_size
+                to_time = (opt_epoch + 1) * batch_size - 1
+                sample_workspace = transition_workspace.get_time_truncated_workspace(
+                    from_time, to_time
                 )
             else:
                 sample_workspace = transition_workspace
@@ -243,6 +245,8 @@ def run_ppo_clip(cfg):
             # Compute the probability of the played actions according to the current policy
             # We do not replay the action: we use the one stored into the dataset
             # Hence predict_proba=True
+            # print_agent = PrintAgent()
+            # print_agent(sample_workspace, t=0, n_steps=1,)
             policy(
                 sample_workspace,
                 t=0,

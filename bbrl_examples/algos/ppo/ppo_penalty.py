@@ -350,8 +350,8 @@ def run_ppo_penalty(cfg):
     # config_name="ppo_lunarlander.yaml",
     # config_name="ppo_swimmer.yaml",
     # config_name="ppo_pendulum.yaml",
-    # config_name="ppo_cartpole.yaml",
-    config_name="ppo_cartpole_continuous.yaml",
+    config_name="ppo_cartpole.yaml",
+    # config_name="ppo_cartpole_continuous.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

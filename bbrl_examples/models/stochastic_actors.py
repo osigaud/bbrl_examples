@@ -105,7 +105,7 @@ class DiscreteActor(BaseActor):
     def get_distribution(self, obs):
         scores = self.model(obs)
         probs = torch.softmax(scores, dim=-1)
-        return torch.distributions.Categorical(probs)
+        return torch.distributions.Categorical(probs), scores
 
     def forward(
         self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
@@ -120,11 +120,11 @@ class DiscreteActor(BaseActor):
             observation = kwargs["observation"]
         else:
             observation = self.get(("env/env_obs", t))
-        scores = self.model(observation)
+        dist, scores = self.get_distribution(observation)
         probs = torch.softmax(scores, dim=-1)
 
         if compute_entropy:
-            entropy = torch.distributions.Categorical(probs).entropy()
+            entropy = dist.entropy()
             self.set(("entropy", t), entropy)
 
         if predict_proba:
@@ -133,7 +133,7 @@ class DiscreteActor(BaseActor):
             self.set(("logprob_predict", t), log_prob)
         else:
             if stochastic:
-                action = torch.distributions.Categorical(probs).sample()
+                action = dist.sample()
             else:
                 action = scores.argmax(1)
 
@@ -143,11 +143,10 @@ class DiscreteActor(BaseActor):
             self.set(("action_logprobs", t), log_probs)
 
     def predict_action(self, obs, stochastic=False):
-        scores = self.model(obs)
+        dist, scores = self.get_distribution(obs)
 
         if stochastic:
-            probs = torch.softmax(scores, dim=-1)
-            action = torch.distributions.Categorical(probs).sample()
+            action = dist.sample()
         else:
             action = scores.argmax(0)
         return action
@@ -227,8 +226,7 @@ class TunableVarianceContinuousActorExp(BaseActor):
     def forward(
         self,
         t,
-        *,
-        stochastic=True,
+        stochastic=False,
         predict_proba=False,
         compute_entropy=False,
         **kwargs,
@@ -336,6 +334,9 @@ class ConstantVarianceContinuousActor(BaseActor):
         dist, mean = self.get_distribution(obs)
         self.set(("entropy", t), dist.entropy())
 
+        if compute_entropy:
+            self.set(("entropy", t), dist.entropy())
+
         if predict_proba:
             action = self.get(("action", t))
             self.set(("logprob_predict", t), dist.log_prob(action))
@@ -377,25 +378,31 @@ class SquashedGaussianActor(BaseActor):
         std = torch.exp(std_out)
         return self.action_dist.make_distribution(mean, std)
 
-    def forward(self, t, stochastic=False, predict_proba=False, **kwargs):
-        action_dist = self.get_distribution(self.get(("env/env_obs", t)))
+    def forward(
+        self, t, stochastic=False, compute_entropy=False, predict_proba=False, **kwargs
+    ):
+        dist = self.get_distribution(self.get(("env/env_obs", t)))
+
+        if compute_entropy:
+            self.set(("entropy", t), dist.entropy())
+
         if predict_proba:
             action = self.get(("action", t))
-            log_prob = action_dist.log_prob(action)
+            log_prob = dist.log_prob(action)
             self.set(("logprob_predict", t), log_prob)
         else:
             if stochastic:
-                action = action_dist.sample()
+                action = dist.sample()
             else:
-                action = action_dist.mode()
-            log_prob = action_dist.log_prob(action)
+                action = dist.mode()
+            log_prob = dist.log_prob(action)
             self.set(("action", t), action)
             self.set(("action_logprobs", t), log_prob)
 
     def predict_action(self, obs, stochastic=False):
         """Predict just one action (without using the workspace)"""
-        action_dist = self.get_distribution(obs)
-        return action_dist.sample() if stochastic else action_dist.mode()
+        dist = self.get_distribution(obs)
+        return dist.sample() if stochastic else dist.mode()
 
     def test(self, obs, action):
         action_dist = self.get_distribution(obs)

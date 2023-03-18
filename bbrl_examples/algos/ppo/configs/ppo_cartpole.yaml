@@ -1,35 +1,38 @@
-    save_best: True
-    plot_agents: True
+      save_best: True
+      plot_agents: True
 
-    logger:
-      classname: bbrl.utils.logger.TFLogger
-      log_dir: ./ppo_logs/
-      verbose: False
-      every_n_seconds: 10
+      logger:
+            classname: bbrl.utils.logger.TFLogger
+            log_dir: ./ppo_logs/
+            verbose: False
+            every_n_seconds: 10
 
-    algorithm:
-      seed: 4
-      nb_seeds: 1
-      max_grad_norm: 0.5
-      n_envs: 8
-      n_steps: 20
-      eval_interval: 2000
-      nb_evals: 10
-      gae: 0.9
-      max_epochs: 8000
-      discount_factor: 0.95
-      clip_range: 0.2
-      clip_range_vf: 0
-      minibatch_size: 64
-      opt_epochs: 1
-      architecture:
-        actor_hidden_size: [24, 36]
-        critic_hidden_size: [24, 36]
+      algorithm:
+            seed: 5
+            max_grad_norm: 0.5
+            n_envs: 8
+            n_steps: 100
+            eval_interval: 1000
+            nb_evals: 10
+            gae: 0.95
+            max_epochs: 50000
+            discount_factor: 0.9
+            clip_range: 0.2
+            clip_range_vf: 0
+            entropy_coef: 2e-7
+            critic_coef: 0.4
+            actor_coef: 1
+            minibatch_size: 20
+            opt_epochs: 10
+            beta: 0.0
+            actor_type: DiscreteActor
+            architecture:
+                  actor_hidden_size: [64, 64]
+                  critic_hidden_size: [64, 64]
+      gym_env:
+        classname: __main__.make_gym_env
+        env_name: CartPole-v1
 
-    gym_env:
-      classname: __main__.make_gym_env
-      env_name: CartPole-v1
-
-    optimizer:
-      classname: torch.optim.Adam
-      lr: 0.001
+      optimizer:
+        classname: torch.optim.Adam
+        lr: 0.001
