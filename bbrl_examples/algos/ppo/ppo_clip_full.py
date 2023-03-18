@@ -211,6 +211,7 @@ def run_ppo_clip(cfg):
 
         # We store the advantage into the transition_workspace
         transition_workspace.set_full("advantage", advantage)
+        transition_workspace.set("advantage", 1, advantage.squeeze(0))
 
         # We rename logprob_predict data into old_action_logprobs
         # We do so because we will rewrite in the logprob_predict variable in mini_batches
@@ -239,6 +240,9 @@ def run_ppo_clip(cfg):
                 sample_workspace = transition_workspace.get_time_truncated_workspace(
                     from_time, to_time
                 )
+                # sample_workspace = transition_workspace.subtime(
+                #    from_time, to_time
+                # )
             else:
                 sample_workspace = transition_workspace
 
@@ -334,6 +338,11 @@ def run_ppo_clip(cfg):
                         cfg.gym_env.env_name,
                         best_reward,
                     )
+
+
+def print_content(ws):
+    for k, v in ws.variables.items():
+        print(f" key : {k} : batch : {v.batch_size()} size {v.time_size()}")
 
 
 @hydra.main(
