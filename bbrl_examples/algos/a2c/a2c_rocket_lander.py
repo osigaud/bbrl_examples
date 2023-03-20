@@ -207,7 +207,7 @@ def run_a2c(cfg, max_grad_norm=0.5):
                 if i > 0:
                     score += 1
             mean = cum_rewards.mean()
-            logger.add_log("reward", mean, nb_steps)
+            logger.log_reward_losses(rewards, nb_steps)
             print(f"epoch: {epoch}, reward: {mean}")
             if score > 0:
                 print(f"score : {score}")

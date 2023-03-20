@@ -15,6 +15,12 @@ class Logger:
         self.add_log("entropy_loss", entropy_loss, epoch)
         self.add_log("actor_loss", actor_loss, epoch)
 
+    def log_reward_losses(self, rewards, nb_steps):
+        self.add_log("reward/mean", rewards.mean(), nb_steps)
+        self.add_log("reward/max", rewards.max(), nb_steps)
+        self.add_log("reward/min", rewards.min(), nb_steps)
+        self.add_log("reward/median", rewards.median(), nb_steps)
+
 
 class RewardLogger:
     def __init__(self, steps_filename, rewards_filename):

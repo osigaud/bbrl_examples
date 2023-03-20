@@ -209,7 +209,7 @@ def run_a2c(cfg):
             )
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
-            logger.add_log("reward", mean, nb_steps)
+            logger.log_reward_losses(rewards, nb_steps)
             print(f"nb_steps: {nb_steps}, reward: {mean}")
             if cfg.save_best and mean > best_reward:
                 best_reward = mean

@@ -296,10 +296,7 @@ def run_ppo_clip(cfg):
             )
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
-            logger.add_log("reward_mean", mean, nb_steps)
-            logger.add_log("reward_max", rewards.max(), nb_steps)
-            logger.add_log("reward_min", rewards.min(), nb_steps)
-            logger.add_log("reward_std", rewards.std(), nb_steps)
+            logger.log_reward_losses(rewards, nb_steps)
             print(f"nb_steps: {nb_steps}, reward: {mean}")
             if cfg.save_best and mean > best_reward:
                 best_reward = mean

@@ -173,7 +173,7 @@ def run_dqn_full(cfg, reward_logger):
             )
             rewards = eval_workspace["env/cumulated_reward"][-1]
             mean = rewards.mean()
-            logger.add_log("reward", mean, nb_steps)
+            logger.log_reward_losses(rewards, nb_steps)
             print(f"epoch: {epoch}, reward: {mean}")
             reward_logger.add(nb_steps, mean)
             if cfg.save_best and mean > best_reward:

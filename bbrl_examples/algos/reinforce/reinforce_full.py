@@ -195,9 +195,9 @@ def run_reinforce(cfg):
         optimizer.step()
 
         # Compute the cumulated reward on final_state
-        cumulated_reward = train_workspace["env/cumulated_reward"][-1]
-        mean = cumulated_reward.mean()
-        logger.add_log("reward", mean, nb_steps)
+        rewards = train_workspace["env/cumulated_reward"][-1]
+        mean = rewards.mean()
+        logger.log_reward_losses(rewards, nb_steps)
         print(f"episode: {episode}, reward: {mean}")
 
         if cfg.save_best and mean > best_reward:
