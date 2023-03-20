@@ -7,7 +7,12 @@ from torch.distributions.normal import Normal
 from torch.distributions import Bernoulli, Independent
 from bbrl.utils.distributions import SquashedDiagGaussianDistribution
 
-from bbrl_examples.models.shared_models import build_mlp, build_backbone
+from bbrl_examples.models.shared_models import (
+    build_mlp,
+    build_backbone,
+    build_ortho_mlp,
+    build_ortho_backbone,
+)
 
 from bbrl.agents.agent import Agent
 
@@ -155,81 +160,15 @@ class DiscreteActor(BaseActor):
 # All the actors below use a Gaussian policy, that is the output is Normal distribution
 
 
-class TunableVarianceContinuousActor(BaseActor):
-    def __init__(self, state_dim, hidden_layers, action_dim):
+class StochasticActor(BaseActor):
+    def __init__(self):
         super().__init__()
-        layers = [state_dim] + list(hidden_layers) + [action_dim]
-        self.model = build_mlp(layers, activation=nn.ReLU())
-        init_variance = torch.randn(action_dim, 1).transpose(0, 1)
-        self.std_param = nn.parameter.Parameter(init_variance)
-        self.soft_plus = torch.nn.Softplus()
 
     def get_distribution(self, obs: torch.Tensor):
-        mean = self.model(obs)
-        # std must be positive
-        return Independent(Normal(mean, self.soft_plus(self.std_param[:, 0])), 1), mean
+        raise NotImplementedError
 
     def forward(
         self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
-    ):
-        """
-        Compute the action given either a time step (looking into the workspace)
-        or an observation (in kwargs)
-        If predict_proba is true, the agent takes the action already written in the workspace and adds its probability
-        Otherwise, it writes the new action
-        """
-        obs = self.get(("env/env_obs", t))
-        dist, mean = self.get_distribution(obs)
-
-        if compute_entropy:
-            self.set(("entropy", t), dist.entropy())
-
-        if predict_proba:
-            action = self.get(("action", t))
-            log_prob = dist.log_prob(action)
-            self.set(("logprob_predict", t), log_prob)
-        else:
-            if stochastic:
-                action = dist.sample()
-            else:
-                action = mean
-            log_prob = dist.log_prob(action)
-            self.set(("action", t), action)
-            self.set(("action_logprobs", t), log_prob)
-
-    def predict_action(self, obs, stochastic=False):
-        """Predict just one action (without using the workspace)"""
-        dist, mean = self.get_distribution(obs)
-        if stochastic:
-            return dist.sample()
-        else:
-            return mean
-
-
-class TunableVarianceContinuousActorExp(BaseActor):
-    """
-    A variant of the TunableVarianceContinuousActor class where, instead of using a softplus on the std,
-    we exponentiate it
-    """
-
-    def __init__(self, state_dim, hidden_layers, action_dim):
-        super().__init__()
-        layers = [state_dim] + list(hidden_layers) + [action_dim]
-        self.model = build_mlp(layers, activation=nn.Tanh())
-        self.std_param = nn.parameter.Parameter(torch.randn(1, action_dim))
-
-    def get_distribution(self, obs: torch.Tensor):
-        mean = self.model(obs)
-        std = torch.clamp(self.std_param, -20, 2)
-        return Independent(Normal(mean, torch.exp(std)), 1), mean
-
-    def forward(
-        self,
-        t,
-        stochastic=False,
-        predict_proba=False,
-        compute_entropy=False,
-        **kwargs,
     ):
         """
         Compute the action given either a time step (looking into the workspace)
@@ -248,21 +187,50 @@ class TunableVarianceContinuousActorExp(BaseActor):
             self.set(("logprob_predict", t), dist.log_prob(action))
         else:
             action = dist.sample() if stochastic else mean
-            logp_pi = dist.log_prob(action)
 
             self.set(("action", t), action)
-            self.set(("action_logprobs", t), logp_pi)
+            self.set(("action_logprobs", t), dist.log_prob(action))
 
-    def predict_action(self, obs, stochastic):
+    def predict_action(self, obs, stochastic=False):
         """Predict just one action (without using the workspace)"""
-        if stochastic:
-            dist, mean = self.get_distribution(obs)
-            return dist.sample()
-        else:
-            return mean
+        dist, mean = self.get_distribution(obs)
+        return dist.sample() if stochastic else mean
 
 
-class StateDependentVarianceContinuousActor(BaseActor):
+class TunableVarianceContinuousActor(StochasticActor):
+    def __init__(self, state_dim, hidden_layers, action_dim):
+        super().__init__()
+        layers = [state_dim] + list(hidden_layers) + [action_dim]
+        self.model = build_mlp(layers, activation=nn.ReLU())
+        init_variance = torch.randn(action_dim, 1).transpose(0, 1)
+        self.std_param = nn.parameter.Parameter(init_variance)
+        self.soft_plus = torch.nn.Softplus()
+
+    def get_distribution(self, obs: torch.Tensor):
+        mean = self.model(obs)
+        # std must be positive
+        return Independent(Normal(mean, self.soft_plus(self.std_param[:, 0])), 1), mean
+
+
+class TunableVarianceContinuousActorExp(StochasticActor):
+    """
+    A variant of the TunableVarianceContinuousActor class where, instead of using a softplus on the std,
+    we exponentiate it
+    """
+
+    def __init__(self, state_dim, hidden_layers, action_dim):
+        super().__init__()
+        layers = [state_dim] + list(hidden_layers) + [action_dim]
+        self.model = build_mlp(layers, activation=nn.Tanh())
+        self.std_param = nn.parameter.Parameter(torch.randn(1, action_dim))
+
+    def get_distribution(self, obs: torch.Tensor):
+        mean = self.model(obs)
+        std = torch.clamp(self.std_param, -20, 2)
+        return Independent(Normal(mean, torch.exp(std)), 1), mean
+
+
+class StateDependentVarianceContinuousActor(StochasticActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
@@ -279,44 +247,8 @@ class StateDependentVarianceContinuousActor(BaseActor):
         std = torch.exp(std_out)
         return Independent(Normal(mean, std), 1), mean
 
-    def forward(
-        self, t, stochastic=False, predict_proba=False, compute_entropy=False, **kwargs
-    ):
-        """
-        Compute the action given either a time step (looking into the workspace)
-        or an observation (in kwargs)
-        If predict_proba is true, the agent takes the action already written in the workspace and adds its probability
-        Otherwise, it writes the new action
-        """
-        obs = self.get(("env/env_obs", t))
-        dist, mean = self.get_distribution(obs)
 
-        if compute_entropy:
-            self.set(("entropy", t), dist.entropy())
-
-        if predict_proba:
-            action = self.get(("action", t))
-            self.set(("logprob_predict", t), dist.log_prob(action))
-        else:
-            if stochastic:
-                action = dist.sample()
-            else:
-                action = mean
-            log_prob = dist.log_prob(action)
-            self.set(("action", t), action)
-            self.set(("action_logprobs", t), log_prob)
-
-    def predict_action(self, obs, stochastic=False):
-        """Predict just one action (without using the workspace)"""
-        dist, mean = self.get_distribution(obs)
-        if stochastic:
-            action = dist.sample()
-        else:
-            action = mean
-        return action
-
-
-class ConstantVarianceContinuousActor(BaseActor):
+class ConstantVarianceContinuousActor(StochasticActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]
@@ -327,39 +259,8 @@ class ConstantVarianceContinuousActor(BaseActor):
         mean = self.model(obs)
         return Normal(mean, self.std_param), mean
 
-    def forward(
-        self, t, predict_proba=False, compute_entropy=False, stochastic=False, **kwargs
-    ):
-        obs = self.get(("env/env_obs", t))
-        dist, mean = self.get_distribution(obs)
-        self.set(("entropy", t), dist.entropy())
 
-        if compute_entropy:
-            self.set(("entropy", t), dist.entropy())
-
-        if predict_proba:
-            action = self.get(("action", t))
-            self.set(("logprob_predict", t), dist.log_prob(action))
-        else:
-            if stochastic:
-                action = dist.sample()
-            else:
-                action = mean
-            log_prob = dist.log_prob(action).sum(axis=-1)
-            self.set(("action", t), action)
-            self.set(("action_logprobs", t), log_prob)
-
-    def predict_action(self, obs, stochastic=False):
-        """Predict just one action (without using the workspace)"""
-        dist, mean = self.get_distribution(obs)
-        if stochastic:
-            action = dist.sample()
-        else:
-            action = mean
-        return action
-
-
-class SquashedGaussianActor(BaseActor):
+class SquashedGaussianActor(StochasticActor):
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         backbone_dim = [state_dim] + list(hidden_layers)
@@ -376,34 +277,27 @@ class SquashedGaussianActor(BaseActor):
 
         std_out = std_out.clamp(-20, 2)  # as in the official code
         std = torch.exp(std_out)
-        return self.action_dist.make_distribution(mean, std)
-
-    def forward(
-        self, t, stochastic=False, compute_entropy=False, predict_proba=False, **kwargs
-    ):
-        dist = self.get_distribution(self.get(("env/env_obs", t)))
-
-        if compute_entropy:
-            self.set(("entropy", t), dist.entropy())
-
-        if predict_proba:
-            action = self.get(("action", t))
-            log_prob = dist.log_prob(action)
-            self.set(("logprob_predict", t), log_prob)
-        else:
-            if stochastic:
-                action = dist.sample()
-            else:
-                action = dist.mode()
-            log_prob = dist.log_prob(action)
-            self.set(("action", t), action)
-            self.set(("action_logprobs", t), log_prob)
-
-    def predict_action(self, obs, stochastic=False):
-        """Predict just one action (without using the workspace)"""
-        dist = self.get_distribution(obs)
-        return dist.sample() if stochastic else dist.mode()
+        return self.action_dist.make_distribution(mean, std), mean
 
     def test(self, obs, action):
         action_dist = self.get_distribution(obs)
         return action_dist.log_prob(action)
+
+
+class TunableVariancePPOActor(StochasticActor):
+    """
+    The official PPO actor uses Tanh activation functions and orthogonal initialization
+    """
+
+    def __init__(self, state_dim, hidden_layers, action_dim):
+        super().__init__()
+        layers = [state_dim] + list(hidden_layers) + [action_dim]
+        self.model = build_ortho_mlp(layers, activation=nn.Tanh())
+        init_variance = torch.randn(1, action_dim)
+        self.std_param = nn.parameter.Parameter(init_variance)
+        self.soft_plus = torch.nn.Softplus()
+
+    def get_distribution(self, obs: torch.Tensor):
+        mean = self.model(obs)
+        # std must be positive
+        return Independent(Normal(mean, self.soft_plus(self.std_param[:, 0])), 1), mean

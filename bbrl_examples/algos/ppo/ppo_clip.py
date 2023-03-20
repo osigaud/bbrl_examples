@@ -34,7 +34,11 @@ from bbrl.agents import Agents, TemporalAgent
 from bbrl_examples.models.envs import create_env_agents
 
 # Neural network models for actors and critics
-from bbrl_examples.models.stochastic_actors import TunableVarianceContinuousActor
+from bbrl_examples.models.stochastic_actors import (
+    TunableVarianceContinuousActor,
+    TunableVarianceContinuousActorExp,
+    TunableVariancePPOActor,
+)
 from bbrl_examples.models.stochastic_actors import SquashedGaussianActor
 from bbrl_examples.models.stochastic_actors import StateDependentVarianceContinuousActor
 from bbrl_examples.models.stochastic_actors import ConstantVarianceContinuousActor
@@ -335,8 +339,8 @@ def run_ppo_clip(cfg):
     # config_name="ppo_lunarlander.yaml",
     # config_name="ppo_swimmer.yaml",
     # config_name="ppo_pendulum.yaml",
-    config_name="ppo_cartpole.yaml",
-    # config_name="ppo_cartpole_continuous.yaml",
+    # config_name="ppo_cartpole.yaml",
+    config_name="ppo_cartpole_continuous.yaml",
     version_base="1.1",
 )
 def main(cfg: DictConfig):

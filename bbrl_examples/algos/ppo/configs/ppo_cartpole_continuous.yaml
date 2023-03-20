@@ -25,7 +25,7 @@
             minibatch_size: 20
             opt_epochs: 10
             beta: 0.5
-            actor_type: TunableVarianceContinuousActor
+            actor_type: TunableVariancePPOActor  # TunableVarianceContinuousActor StateDependentVarianceContinuousActor ConstantVarianceContinuousActor TunableVarianceContinuousActorExp
             architecture:
               actor_hidden_size: [64, 64]
               critic_hidden_size: [64, 64]
