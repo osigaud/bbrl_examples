@@ -1,3 +1,11 @@
+"""
+This version of PPO works, but it incorrectly samples minibatches randomly from the rollouts
+without making sure that each sample is used once and only
+See: https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/
+for a full description of all the coding tricks that should be integrated
+"""
+
+
 import sys
 import os
 import copy
