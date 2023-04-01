@@ -236,7 +236,7 @@ def run_ppo_clip(cfg):
                 for i in ra:
                     print(i)
                 print("stop")
-                # sample_workspace = train_workspace.select_batch(from_time, to_time)
+                # sample_workspace = train_workspace.select_batch(ra)
                 sample_workspace = train_workspace.get_time_truncated_workspace(
                     from_time, to_time
                 )
