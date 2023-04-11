@@ -1,6 +1,6 @@
 """
 This version of PPO works, but it incorrectly samples minibatches randomly from the rollouts
-without making sure that each sample is used once and only
+without making sure that each sample is used once and only once
 See: https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/
 for a full description of all the coding tricks that should be integrated
 """
@@ -175,7 +175,7 @@ def run_ppo_penalty(cfg):
             train_agent(
                 train_workspace,
                 t=delta_t,
-                n_steps=cfg.algorithm.n_steps - delta_t,
+                n_steps=cfg.algorithm.n_steps,
                 stochastic=True,
                 predict_proba=False,
                 compute_entropy=False,
@@ -183,7 +183,7 @@ def run_ppo_penalty(cfg):
             old_actor(
                 train_workspace,
                 t=delta_t,
-                n_steps=cfg.algorithm.n_steps - delta_t,
+                n_steps=cfg.algorithm.n_steps,
                 # Just computes the probability of the current actor's action
                 # to get the ratio of probabilities
                 predict_proba=True,
@@ -191,7 +191,7 @@ def run_ppo_penalty(cfg):
             )
 
         # Compute the critic value over the whole workspace
-        critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps - delta_t)
+        critic_agent(train_workspace, t=delta_t, n_steps=cfg.algorithm.n_steps)
 
         transition_workspace = train_workspace.get_transitions()
 
@@ -248,9 +248,9 @@ def run_ppo_penalty(cfg):
 
         # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
-            if cfg.algorithm.minibatch_size > 0:
+            if cfg.algorithm.opt_epochs > 0:
                 sample_workspace = transition_workspace.select_batch_n(
-                    cfg.algorithm.minibatch_size
+                    int(cfg.algorithm.n_steps / cfg.algorithm.opt_epochs)
                 )
             else:
                 sample_workspace = transition_workspace

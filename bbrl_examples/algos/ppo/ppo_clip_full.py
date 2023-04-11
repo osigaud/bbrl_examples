@@ -1,3 +1,10 @@
+"""
+This version of PPO is work in progress to integrate all mechanisms from the official PPO implementation
+See: https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/
+for a full description of all the coding tricks that should be integrated
+"""
+
+
 import sys
 import os
 import copy
@@ -14,6 +21,7 @@ from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 
 from bbrl.utils.functionalb import gae
+from bbrl.utils.replay_buffer import ReplayBuffer
 
 from bbrl_examples.models.loggers import Logger
 from bbrl.utils.chrono import Chrono
@@ -34,11 +42,15 @@ from bbrl.agents import Agents, TemporalAgent, PrintAgent
 from bbrl_examples.models.envs import create_env_agents
 
 # Neural network models for actors and critics
-from bbrl_examples.models.stochastic_actors import TunableVarianceContinuousActor
-from bbrl_examples.models.stochastic_actors import SquashedGaussianActor
-from bbrl_examples.models.stochastic_actors import StateDependentVarianceContinuousActor
-from bbrl_examples.models.stochastic_actors import ConstantVarianceContinuousActor
-from bbrl_examples.models.stochastic_actors import DiscreteActor, BernoulliActor
+from bbrl_examples.models.stochastic_actors import (
+    TunableVariancePPOActor,
+    SquashedGaussianActor,
+    StateDependentVarianceContinuousActor,
+    ConstantVarianceContinuousActor,
+    DiscreteActor,
+    BernoulliActor,
+)
+
 from bbrl_examples.models.critics import VAgent
 
 # Allow to display a policy and a critic as a 2D map
@@ -128,7 +140,8 @@ def run_ppo_clip(cfg):
         old_critic_agent,
     ) = create_ppo_agent(cfg, train_env_agent, eval_env_agent)
 
-    # We can call the policy instead of a temporal agent because we run on transitions
+    # We can call the policy instead of a temporal agent because we run on transitions,
+    # so we just need one step
     policy = train_agent.agent.agents[1]
     # This is not true of the old_policy, because it works on the train_workspace
     old_actor = TemporalAgent(old_policy)
@@ -137,6 +150,8 @@ def run_ppo_clip(cfg):
 
     # Configure the optimizer
     optimizer = setup_optimizer(cfg, train_agent, critic_agent)
+    if cfg.algorithm.opt_epochs > 0:
+        batch_size = int(cfg.algorithm.n_steps / cfg.algorithm.opt_epochs)
 
     # Training loop
     for epoch in range(cfg.algorithm.max_epochs):
@@ -149,7 +164,7 @@ def run_ppo_clip(cfg):
             delta_t = 1
             train_workspace.copy_n_last_steps(1)
 
-        # Run the curren actor and evaluate the proba of its action according to the old actor
+        # Run the current actor and evaluate the proba of its action according to the old actor
         # The old_actor can be run after the train_agent on the same workspace
         # because it writes a logprob_predict and not an action.
         # That is, it does not determine the action of the old_actor,
@@ -159,7 +174,7 @@ def run_ppo_clip(cfg):
             train_agent(
                 train_workspace,
                 t=delta_t,
-                n_steps=cfg.algorithm.n_steps - delta_t,
+                n_steps=cfg.algorithm.n_steps,
                 stochastic=True,
                 predict_proba=False,
                 compute_entropy=False,
@@ -167,7 +182,7 @@ def run_ppo_clip(cfg):
             old_actor(
                 train_workspace,
                 t=delta_t,
-                n_steps=cfg.algorithm.n_steps - delta_t,
+                n_steps=cfg.algorithm.n_steps,
                 # Just computes the probability of the current actor's action
                 # to get the ratio of probabilities
                 predict_proba=True,
@@ -175,28 +190,26 @@ def run_ppo_clip(cfg):
             )
 
         # Compute the critic value over the whole workspace
-        critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps - delta_t)
+        critic_agent(train_workspace, t=delta_t, n_steps=cfg.algorithm.n_steps)
 
-        transition_workspace = train_workspace.get_transitions()
-
-        done, truncated, reward, action, v_value = transition_workspace[
+        done, truncated, reward, action, v_value = train_workspace[
             "env/done",
             "env/truncated",
             "env/reward",
             "action",
             "v_value",
         ]
-        nb_steps += action[0].shape[0]
 
         # Determines whether values of the critic should be propagated
         # True if the episode reached a time limit or if the task was not done
         # See https://colab.research.google.com/drive/1W9Y-3fa6LsPeR6cBC1vgwBjKfgMwZvP5?usp=sharing
-        must_bootstrap = torch.logical_or(~done[1], truncated[1])
+        must_bootstrap = torch.logical_or(~done, truncated)
 
         # the critic values are clamped to move not too far away from the values of the previous critic
+
         with torch.no_grad():
             old_critic_agent(train_workspace, n_steps=cfg.algorithm.n_steps)
-        old_v_value = transition_workspace["v_value"]
+        old_v_value = train_workspace["v_value"]
         if cfg.algorithm.clip_range_vf > 0:
             # Clip the difference between old and new values
             # NOTE: this depends on the reward scaling
@@ -207,52 +220,59 @@ def run_ppo_clip(cfg):
             )
 
         # then we compute the advantage using the clamped critic values
-        advantage = compute_advantage(cfg, reward, must_bootstrap, v_value)
+
+        # NB: I had to add must_bootstrap[1:], otherwise the sizes are not correct
+        # A weakness of this code is that the advantage tensor is one step shorter than the other variables
+        # so it needs to be completed with a 0
+
+        advantage = compute_advantage(cfg, reward, must_bootstrap[1:], v_value)
+        last_bit = torch.Tensor([[0]])
+        advantage = torch.cat((advantage, last_bit), 0)
+        print("adv rollout", advantage)
 
         # We store the advantage into the transition_workspace
-        transition_workspace.set_full("advantage", advantage)
-        # In principle, adding the next time step is not necessary as it is not used,
-        # but we include it becuase sometimes the workspace checks that all variables have the same shape
-        transition_workspace.set("advantage", 1, advantage.squeeze(0))
+        train_workspace.set_full("advantage", advantage)
 
         # We rename logprob_predict data into old_action_logprobs
         # We do so because we will rewrite in the logprob_predict variable in mini_batches
-        transition_workspace.set_full(
-            "old_action_logprobs", transition_workspace["logprob_predict"].detach()
+        train_workspace.set_full(
+            "old_action_logprobs", train_workspace["logprob_predict"].detach()
         )
 
-        transition_workspace.clear("logprob_predict")
+        train_workspace.clear("logprob_predict")
 
-        critic_loss = compute_critic_loss(advantage)
-        loss_critic = cfg.algorithm.critic_coef * critic_loss
+        rb = ReplayBuffer(train_workspace.batch_size())
+        rb.put(train_workspace)
+        shuffled = rb.get_shuffled(rb.max_size)
 
-        optimizer.zero_grad()
-        loss_critic.backward()
-        torch.nn.utils.clip_grad_norm_(
-            critic_agent.parameters(), cfg.algorithm.max_grad_norm
-        )
-        optimizer.step()
+        print_content(shuffled)
 
         # We start several optimization epochs on mini_batches
-        batch_size = int(cfg.algorithm.n_steps / cfg.algorithm.opt_epochs)
-        for opt_epoch in range(cfg.algorithm.opt_epochs):
+        for opt_epoch in range(max(cfg.algorithm.opt_epochs, 1)):
             if cfg.algorithm.opt_epochs > 0:
                 from_time = opt_epoch * batch_size
-                to_time = (opt_epoch + 1) * batch_size - 1
-                sample_workspace = transition_workspace.get_time_truncated_workspace(
-                    from_time, to_time
+                to_time = (opt_epoch + 1) * batch_size
+
+                print(
+                    f"************************************************************** [{from_time}, {to_time}["
                 )
-                # sample_workspace = transition_workspace.subtime(
-                #    from_time, to_time
-                # )
+                # The +1 is necessary because we need the next step in the transitions
+                # sample_workspace = train_workspace.get_time_truncated_workspace(
+                sample_workspace = shuffled.subtime(from_time, to_time + 1)
+                print("sample workspace:")
+                print_ag = TemporalAgent(PrintAgent("env/timestep", "advantage"))
+                print_ag(
+                    sample_workspace,
+                    t=0,
+                    n_steps=min(to_time + 1, cfg.algorithm.n_steps) - from_time,
+                )
             else:
-                sample_workspace = transition_workspace
+                sample_workspace = shuffled
 
             # Compute the probability of the played actions according to the current policy
             # We do not replay the action: we use the one stored into the dataset
             # Hence predict_proba=True
-            # print_agent = PrintAgent()
-            # print_agent(sample_workspace, t=0, n_steps=1,)
+            #
             policy(
                 sample_workspace,
                 t=0,
@@ -260,11 +280,34 @@ def run_ppo_clip(cfg):
                 compute_entropy=True,
                 predict_proba=True,
             )
-
-            # The logprob_predict Tensor has been computed from the old_policy outside the loop
-            advantage, action_logp, old_action_logp, entropy = sample_workspace[
-                "advantage", "logprob_predict", "old_action_logprobs", "entropy"
+            print("transition workspace:")
+            print_agent = TemporalAgent(PrintAgent("env/timestep", "advantage"))
+            print_agent(
+                sample_workspace,
+                t=0,
+                n_steps=1,
+            )
+            # The old_action_logprobs Tensor has been computed from the old_policy outside the loop
+            (
+                action,
+                advantage,
+                action_logp,
+                old_action_logp,
+                entropy,
+            ) = sample_workspace[
+                "action",
+                "advantage",
+                "logprob_predict",
+                "old_action_logprobs",
+                "entropy",
             ]
+            nb_steps += action[0].shape[0]
+
+            print("in transition advantage full", advantage)
+            print("in transition  advantage [0]", advantage[0])
+            critic_loss = compute_critic_loss(advantage[0])
+            # critic_loss = action_logp[0][0]
+            loss_critic = cfg.algorithm.critic_coef * critic_loss
 
             act_diff = action_logp[0] - old_action_logp[0].detach()
             ratios = act_diff.exp()
@@ -283,7 +326,12 @@ def run_ppo_clip(cfg):
 
             loss = loss_actor + loss_entropy
 
+            torch.autograd.set_detect_anomaly(True)
             optimizer.zero_grad()
+            loss_critic.backward()
+            torch.nn.utils.clip_grad_norm_(
+                critic_agent.parameters(), cfg.algorithm.max_grad_norm
+            )
             loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 policy.parameters(), cfg.algorithm.max_grad_norm
@@ -342,6 +390,38 @@ def run_ppo_clip(cfg):
 def print_content(ws):
     for k, v in ws.variables.items():
         print(f" key : {k} : batch : {v.batch_size()} size {v.time_size()}")
+
+
+def print_time_content(ws):
+    for k, v in ws.variables.items():
+        if k == "env/timestep":
+            print(f" key : {k} : batch : {v}")
+
+
+def debug_transitions(workspace):
+    """ """
+    (
+        done,
+        truncated,
+        reward,
+    ) = workspace["env/done", "env/truncated", "env/reward"]
+    timestep = workspace["env/timestep"]
+    assert not done[
+        0
+    ].max()  # done must be always false in the first timestep of the transition.
+    # if not it means we have a transition (step final) => (step initial)
+
+    # timesteps must always follow each other.
+    assert (timestep[0] == timestep[1] - 1).all()
+
+    if done[truncated].numel() > 0:
+        assert torch.amin(
+            done[truncated]
+        ), "when truncated is true, done is always true"
+
+    assert reward[1].sum() == len(
+        reward[1]
+    ), "in cartpole, rewards are always 1"  # only 1 rewards
 
 
 @hydra.main(

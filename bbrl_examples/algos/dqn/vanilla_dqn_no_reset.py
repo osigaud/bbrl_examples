@@ -9,7 +9,7 @@ import hydra
 from omegaconf import DictConfig
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
-from bbrl.agents import Agents, TemporalAgent
+from bbrl.agents import Agents, TemporalAgent, PrintAgent
 
 from bbrl.visu.visu_policies import plot_policy
 from bbrl.visu.visu_critics import plot_critic
@@ -29,9 +29,10 @@ def create_dqn_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
     critic = DiscreteQAgent(obs_size, cfg.algorithm.architecture.hidden_size, act_size)
     explorer = EGreedyActionSelector(cfg.algorithm.epsilon_init)
+    printer_agent = PrintAgent()
     q_agent = TemporalAgent(critic)
     tr_agent = Agents(train_env_agent, critic, explorer)
-    ev_agent = Agents(eval_env_agent, critic)
+    ev_agent = Agents(eval_env_agent, critic, printer_agent)
 
     # Get an agent that is executed on a complete workspace
     train_agent = TemporalAgent(tr_agent)

@@ -19,7 +19,6 @@
             max_epochs: 21000
             discount_factor: 0.999999
             entropy_coef: 0
-            minibatch_size: 64
             opt_epochs: 1
             clip_range: 0.2
             clip_range_vf: 0

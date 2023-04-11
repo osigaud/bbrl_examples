@@ -1,5 +1,5 @@
-      save_best: True
-      plot_agents: True
+      save_best: False
+      plot_agents: False
 
       logger:
             classname: bbrl.utils.logger.TFLogger
@@ -8,10 +8,10 @@
             every_n_seconds: 10
 
       algorithm:
-            seed: 5
+            seed: 2
             max_grad_norm: 0.5
-            n_envs: 8
-            n_steps: 100
+            n_envs: 1
+            n_steps: 6
             eval_interval: 1000
             nb_evals: 10
             gae: 0.95
@@ -22,8 +22,7 @@
             entropy_coef: 2e-7
             critic_coef: 0.4
             actor_coef: 1
-            minibatch_size: 20
-            opt_epochs: 10
+            opt_epochs: 3
             beta: 0.0
             actor_type: DiscreteActor
             architecture:
