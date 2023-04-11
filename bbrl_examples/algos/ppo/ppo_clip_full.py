@@ -44,6 +44,8 @@ from bbrl_examples.models.envs import create_env_agents
 # Neural network models for actors and critics
 from bbrl_examples.models.stochastic_actors import (
     TunableVariancePPOActor,
+    TunableVarianceContinuousActor,
+    TunableVarianceContinuousActorExp,
     SquashedGaussianActor,
     StateDependentVarianceContinuousActor,
     ConstantVarianceContinuousActor,
@@ -280,7 +282,7 @@ def run_ppo_clip(cfg):
                 compute_entropy=True,
                 predict_proba=True,
             )
-            print("transition workspace:")
+            print("sample workspace 2:")
             print_agent = TemporalAgent(PrintAgent("env/timestep", "advantage"))
             print_agent(
                 sample_workspace,
@@ -303,8 +305,8 @@ def run_ppo_clip(cfg):
             ]
             nb_steps += action[0].shape[0]
 
-            print("in transition advantage full", advantage)
-            print("in transition  advantage [0]", advantage[0])
+            print("advantage full", advantage)
+            print("advantage [0]", advantage[0])
             critic_loss = compute_critic_loss(advantage[0])
             # critic_loss = action_logp[0][0]
             loss_critic = cfg.algorithm.critic_coef * critic_loss

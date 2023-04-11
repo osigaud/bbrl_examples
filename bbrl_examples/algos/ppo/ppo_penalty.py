@@ -41,11 +41,16 @@ from bbrl.agents import Agents, TemporalAgent
 from bbrl_examples.models.envs import create_env_agents
 
 # Neural network models for actors and critics
-from bbrl_examples.models.stochastic_actors import TunableVarianceContinuousActor
-from bbrl_examples.models.stochastic_actors import SquashedGaussianActor
-from bbrl_examples.models.stochastic_actors import StateDependentVarianceContinuousActor
-from bbrl_examples.models.stochastic_actors import ConstantVarianceContinuousActor
-from bbrl_examples.models.stochastic_actors import DiscreteActor, BernoulliActor
+from bbrl_examples.models.stochastic_actors import (
+    TunableVariancePPOActor,
+    TunableVarianceContinuousActor,
+    TunableVarianceContinuousActorExp,
+    SquashedGaussianActor,
+    StateDependentVarianceContinuousActor,
+    ConstantVarianceContinuousActor,
+    DiscreteActor,
+    BernoulliActor,
+)
 from bbrl_examples.models.critics import VAgent
 
 # The KLAgent is specific to the KL regularization version of PPO
@@ -165,7 +170,7 @@ def run_ppo_penalty(cfg):
             delta_t = 1
             train_workspace.copy_n_last_steps(1)
 
-        # Run the curren actor and evaluate the proba of its action according to the old actor
+        # Run the current actor and evaluate the proba of its action according to the old actor
         # The old_actor can be run after the train_agent on the same workspace
         # because it writes a logprob_predict and not an action.
         # That is, it does not determine the action of the old_actor,
