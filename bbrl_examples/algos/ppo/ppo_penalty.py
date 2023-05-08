@@ -253,9 +253,9 @@ def run_ppo_penalty(cfg):
 
         # We start several optimization epochs on mini_batches
         for opt_epoch in range(cfg.algorithm.opt_epochs):
-            if cfg.algorithm.opt_epochs > 0:
+            if cfg.algorithm.batch_size > 0:
                 sample_workspace = transition_workspace.select_batch_n(
-                    int(cfg.algorithm.n_steps / cfg.algorithm.opt_epochs)
+                    cfg.algorithm.batch_size
                 )
             else:
                 sample_workspace = transition_workspace

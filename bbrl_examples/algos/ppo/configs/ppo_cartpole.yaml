@@ -11,7 +11,7 @@
             seed: 2
             max_grad_norm: 0.5
             n_envs: 1
-            n_steps: 6
+            n_steps: 48
             eval_interval: 1000
             nb_evals: 10
             gae: 0.95
@@ -23,6 +23,7 @@
             critic_coef: 0.4
             actor_coef: 1
             opt_epochs: 3
+            batch_size: 16
             beta: 0.0
             actor_type: DiscreteActor
             architecture:
