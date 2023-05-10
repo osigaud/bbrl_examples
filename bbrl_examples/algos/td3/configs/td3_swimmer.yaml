@@ -10,7 +10,7 @@
     algorithm:
       seed: 1
       n_envs: 1
-      n_steps: 1
+      n_steps: 200
       buffer_size: 10e6
       tau_target: 0.005
       n_updates: 1
@@ -32,7 +32,7 @@
 
     actor_optimizer:
       classname: torch.optim.Adam
-      lr: 0.001
+      lr: 0.0001
     
     critic_optimizer:
       classname: torch.optim.Adam

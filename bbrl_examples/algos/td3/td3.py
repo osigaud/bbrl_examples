@@ -14,7 +14,7 @@ from bbrl.utils.chrono import Chrono
 
 from bbrl import get_arguments, get_class
 from bbrl.workspace import Workspace
-from bbrl.agents import Agents, TemporalAgent
+from bbrl.agents import Agents, TemporalAgent, PrintAgent
 
 from bbrl_examples.models.loggers import Logger, RewardLogger
 from bbrl.utils.replay_buffer import ReplayBuffer
