@@ -265,7 +265,7 @@ def run_td3(cfg, reward_logger):
             delta_list.append(maxi_delta)
 
             mean = rewards[-1].mean()
-            logger.log_reward_losses(rewards, nb_steps)
+            logger.log_reward_losses(rewards[-1], nb_steps)
             print(f"nb_steps: {nb_steps}, reward: {mean}")
             reward_logger.add(nb_steps, mean)
             if cfg.save_best and mean > best_reward:
