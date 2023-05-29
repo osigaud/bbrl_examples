@@ -3,6 +3,47 @@ import random
 import numpy as np
 
 
+class FilterWrapper(gym.ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.observation_space = gym.spaces.Box(
+            low=np.array([env.observation_space.low[1], env.observation_space.low[3]]),
+            high=np.array(
+                [env.observation_space.high[1], env.observation_space.high[3]]
+            ),
+            dtype=np.float32,
+        )
+
+    def observation(self, observation):
+        return np.array([observation[1], observation[3]])
+
+
+class DelayWrapper(gym.ObservationWrapper):
+    def __init__(self, env, N=10):
+        super().__init__(env)
+        self.N = N
+        self.state_buffer = None
+        self.observation_space = env.observation_space
+
+    def reset(self, **kwargs):
+        observation = self.env.reset(**kwargs)
+
+        self.state_buffer = np.zeros((self.N, *observation.shape))
+        self.state_buffer[-1] = observation
+        return self.state_buffer[0]
+
+    def observation(self, observation):
+
+        self.state_buffer = np.roll(self.state_buffer, shift=-1, axis=0)
+        self.state_buffer[-1] = observation
+        return self.state_buffer[0]
+
+    def step(self, action):
+
+        observation, reward, done, info = self.env.step(action)
+        return self.observation(observation), reward, done, info
+
+
 class RocketLanderWrapper(gym.Wrapper):
     """
     Specific wrapper to shape the reward of the rocket lander environment
