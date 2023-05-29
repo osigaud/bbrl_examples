@@ -11,10 +11,28 @@ from bbrl.workspace import Workspace
 from bbrl.agents import Agents, TemporalAgent
 
 from bbrl_examples.models.loggers import Logger
-from bbrl_examples.models.actors import DiscreteActor
+
+# Neural network models for actors and critics
+from bbrl_examples.models.actors import (
+    ContinuousDeterministicActor,
+)
+from bbrl_examples.models.stochastic_actors import (
+    TunableVariancePPOActor,
+    TunableVarianceContinuousActor,
+    TunableVarianceContinuousActorExp,
+    SquashedGaussianActor,
+    StateDependentVarianceContinuousActor,
+    ConstantVarianceContinuousActor,
+    DiscreteActor,
+    BernoulliActor,
+)
 from bbrl_examples.models.envs import create_no_reset_env_agent
 
 from bbrl.visu.visu_policies import plot_policy
+
+import matplotlib
+
+matplotlib.use("TkAgg")
 
 
 class CovMatrix:
@@ -38,13 +56,13 @@ class CovMatrix:
         self.cov = torch.cov(elite_weights.T) + self.noise
 
 
-# Create the PPO Agent
+# Create the CEM Agent
 def create_CEM_agent(cfg, env_agent):
     obs_size, act_size = env_agent.get_obs_and_actions_sizes()
-    action_agent = DiscreteActor(
+    policy = globals()[cfg.algorithm.actor_type](
         obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
     )
-    ev_agent = Agents(env_agent, action_agent)
+    ev_agent = Agents(env_agent, policy)
     eval_agent = TemporalAgent(ev_agent)
     eval_agent.seed(cfg.algorithm.seed)
 
@@ -64,7 +82,6 @@ def run_cem(cfg):
 
     pop_size = cfg.algorithm.pop_size
 
-    assert cfg.algorithm.n_envs % cfg.algorithm.n_processes == 0
     eval_agent = create_CEM_agent(cfg, eval_env_agent)
 
     centroid = torch.nn.utils.parameters_to_vector(eval_agent.parameters())
@@ -88,9 +105,9 @@ def run_cem(cfg):
             w = weights[i]
             torch.nn.utils.vector_to_parameters(w, eval_agent.parameters())
 
-            eval_agent(workspace, t=0, stop_variable="env/done", render=True)
+            eval_agent(workspace, t=0, stop_variable="env/done", render=False)
             action = workspace["action"]
-            nb_steps += action[0].shape[0]
+            nb_steps += action.shape[0]
             rewards = workspace["env/cumulated_reward"][-1]
             mean_reward = rewards.mean()
             logger.add_log("reward", mean_reward, nb_steps)
@@ -98,12 +115,10 @@ def run_cem(cfg):
             # ---------------------------------------------------
             scores.append(mean_reward)
 
-            # if mean_reward >= best_score:
-            # best_score = mean_reward
-            # best_params = weights[i]
             if cfg.verbose:
-                print(f"Indiv: {i + 1} score {scores[i]:.2f}")
-                print(f"nb_steps: {nb_steps}, reward: {mean_reward}")
+                print(
+                    f"Indiv: {i + 1}, nb_steps: {nb_steps}, reward: {mean_reward:.2f}"
+                )
             if cfg.save_best and mean_reward > best_score:
                 best_score = mean_reward
                 print("Best score: ", best_score)
@@ -131,24 +146,26 @@ def run_cem(cfg):
         elites_idxs = np.argsort(scores)[-cfg.algorithm.elites_nb :]
         elites_weights = [weights[k] for k in elites_idxs]
         elites_weights = torch.cat(
-            [torch.tensor(w).unsqueeze(0) for w in elites_weights], dim=0
+            [w.clone().detach().unsqueeze(0) for w in elites_weights], dim=0
         )
         centroid = elites_weights.mean(0)
 
         # Update covariance
         matrix.update_noise()
         matrix.update_covariance(elites_weights)
+        print("---------------------")
 
 
 @hydra.main(
     config_path="./configs/",
-    config_name="cem_cartpole.yaml",
+    config_name="cem_mountain_car.yaml",
+    # config_name="cem_cartpole.yaml",
     version_base="1.1",
 )
 def main(cfg):
-    import torch.multiprocessing as mp
+    # import torch.multiprocessing as mp
 
-    mp.set_start_method("spawn")
+    # mp.set_start_method("spawn")
     run_cem(cfg)
 
 

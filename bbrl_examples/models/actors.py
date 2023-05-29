@@ -53,7 +53,7 @@ class ContinuousDeterministicActor(BaseActor):
             # layers, activation=nn.ReLU(), output_activation=nn.ReLU()
         )
 
-    def forward(self, t):
+    def forward(self, t, **kwargs):
         obs = self.get(("env/env_obs", t))
         action = self.model(obs)
         self.set(("action", t), action)

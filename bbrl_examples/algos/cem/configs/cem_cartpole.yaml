@@ -10,23 +10,16 @@
 
       algorithm:
             seed: 4
-            nb_seeds: 1
             sigma: 0.2
+            nb_evals: 10
             noise_multiplier: 0.999
             pop_size: 30
             elites_nb: 10
-            n_processes: 1
-            n_envs: 8
-            eval_interval: 2000
-            nb_evals: 10
             max_epochs: 8000
+            actor_type: DiscreteActor
             architecture:
                   actor_hidden_size: [8, 8]
 
       gym_env:
             classname: __main__.make_gym_env
-            env_name: MountainCar-v0
-
-      optimizer:
-            classname: torch.optim.Adam
-            lr: 0.001
+            env_name: CartPole-v1
