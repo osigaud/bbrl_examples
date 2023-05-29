@@ -1,0 +1,25 @@
+      save_best: True
+      plot_agents: True
+      verbose: True
+
+      logger:
+            classname: bbrl.utils.logger.TFLogger
+            log_dir: ./cem_logs/
+            verbose: False
+            every_n_seconds: 10
+
+      algorithm:
+            seed: 1
+            sigma: 0.1
+            nb_evals: 10
+            noise_multiplier: 0.99
+            pop_size: 10
+            elites_nb: 5
+            max_epochs: 8000
+            actor_type: ContinuousDeterministicActor
+            architecture:
+                  actor_hidden_size: [4, 4]
+
+      gym_env:
+            classname: __main__.make_gym_env
+            env_name: MountainCarContinuous-v0
