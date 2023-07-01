@@ -72,7 +72,10 @@ def make_gym_env(env_name):
 def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     obs_size, act_size = train_env_agent.get_obs_and_actions_sizes()
     policy = globals()[cfg.algorithm.actor_type](
-        obs_size, cfg.algorithm.architecture.actor_hidden_size, act_size
+        obs_size,
+        cfg.algorithm.architecture.actor_hidden_size,
+        act_size,
+        name="current_policy",
     )
     tr_agent = Agents(train_env_agent, policy)
     ev_agent = Agents(eval_env_agent, policy)
@@ -87,6 +90,7 @@ def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
     train_agent.seed(cfg.algorithm.seed)
 
     old_policy = copy.deepcopy(policy)
+    old_policy.setname("old_policy")
 
     return train_agent, eval_agent, critic_agent, old_policy, old_critic_agent
 

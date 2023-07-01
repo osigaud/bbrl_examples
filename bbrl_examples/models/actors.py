@@ -3,7 +3,6 @@ from abc import ABC
 import torch
 import torch.nn as nn
 
-
 from bbrl_examples.models.shared_models import build_mlp, build_backbone
 
 from bbrl.agents.agent import Agent
@@ -19,6 +18,8 @@ class BaseActor(Agent, ABC):
 
 
 class DiscreteDeterministicActor(BaseActor):
+    """This actor is assumed to have one output per action, and we take the action with the highest output"""
+
     def __init__(self, state_dim, hidden_size, n_actions):
         super().__init__()
         self.model = build_mlp(
@@ -34,7 +35,7 @@ class DiscreteDeterministicActor(BaseActor):
             observation = kwargs["observation"]
         else:
             observation = self.get(("env/env_obs", t))
-        action = self.model(observation)
+        action = torch.argmax(self.model(observation), axis=1)
         self.set(("action", t), action)
 
     def predict_action(self, obs):
@@ -43,6 +44,8 @@ class DiscreteDeterministicActor(BaseActor):
 
 
 class ContinuousDeterministicActor(BaseActor):
+    """This actor outputs continuous actions"""
+
     def __init__(self, state_dim, hidden_layers, action_dim):
         super().__init__()
         layers = [state_dim] + list(hidden_layers) + [action_dim]

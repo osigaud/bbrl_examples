@@ -15,6 +15,7 @@ from bbrl_examples.models.loggers import Logger
 # Neural network models for actors and critics
 from bbrl_examples.models.actors import (
     ContinuousDeterministicActor,
+    DiscreteDeterministicActor,
 )
 from bbrl_examples.models.stochastic_actors import (
     TunableVariancePPOActor,

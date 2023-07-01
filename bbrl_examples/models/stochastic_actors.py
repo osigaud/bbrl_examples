@@ -101,11 +101,15 @@ class ActionAgent(Agent):
 
 
 class DiscreteActor(BaseActor):
-    def __init__(self, state_dim, hidden_size, n_actions):
+    def __init__(self, state_dim, hidden_size, n_actions, name="policy"):
         super().__init__()
         self.model = build_mlp(
             [state_dim] + list(hidden_size) + [n_actions], activation=nn.ReLU()
         )
+        self.set_name(name)
+
+    def set_name(self, name):
+        self.name = name
 
     def get_distribution(self, obs):
         scores = self.model(obs)
@@ -135,7 +139,7 @@ class DiscreteActor(BaseActor):
         if predict_proba:
             action = self.get(("action", t))
             log_prob = probs[torch.arange(probs.size()[0]), action].log()
-            self.set(("logprob_predict", t), log_prob)
+            self.set((f"{self.name}/logprob_predict", t), log_prob)
         else:
             if stochastic:
                 action = dist.sample()
@@ -145,7 +149,7 @@ class DiscreteActor(BaseActor):
             log_probs = probs[torch.arange(probs.size()[0]), action].log()
 
             self.set(("action", t), action)
-            self.set(("action_logprobs", t), log_probs)
+            self.set((f"{self.name}/action_logprobs", t), log_probs)
 
     def predict_action(self, obs, stochastic=False):
         dist, scores = self.get_distribution(obs)
@@ -161,8 +165,11 @@ class DiscreteActor(BaseActor):
 
 
 class StochasticActor(BaseActor):
-    def __init__(self):
+    def __init__(self, name="policy"):
         super().__init__()
+
+    def set_name(self, name):
+        self.name = name
 
     def get_distribution(self, obs: torch.Tensor):
         raise NotImplementedError
@@ -184,12 +191,12 @@ class StochasticActor(BaseActor):
 
         if predict_proba:
             action = self.get(("action", t))
-            self.set(("logprob_predict", t), dist.log_prob(action))
+            self.set((f"{self.name}/logprob_predict", t), dist.log_prob(action))
         else:
             action = dist.sample() if stochastic else mean
 
             self.set(("action", t), action)
-            self.set(("action_logprobs", t), dist.log_prob(action))
+            self.set((f"{self.name}/action_logprobs", t), dist.log_prob(action))
 
     def predict_action(self, obs, stochastic=False):
         """Predict just one action (without using the workspace)"""
@@ -198,8 +205,8 @@ class StochasticActor(BaseActor):
 
 
 class TunableVarianceContinuousActor(StochasticActor):
-    def __init__(self, state_dim, hidden_layers, action_dim):
-        super().__init__()
+    def __init__(self, state_dim, hidden_layers, action_dim, name="policy"):
+        super().__init__(name)
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(layers, activation=nn.ReLU())
         init_variance = torch.randn(action_dim, 1).transpose(0, 1)
@@ -218,8 +225,8 @@ class TunableVarianceContinuousActorExp(StochasticActor):
     we exponentiate it
     """
 
-    def __init__(self, state_dim, hidden_layers, action_dim):
-        super().__init__()
+    def __init__(self, state_dim, hidden_layers, action_dim, name="policy"):
+        super().__init__(name)
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(layers, activation=nn.Tanh())
         self.std_param = nn.parameter.Parameter(torch.randn(1, action_dim))
@@ -231,8 +238,8 @@ class TunableVarianceContinuousActorExp(StochasticActor):
 
 
 class StateDependentVarianceContinuousActor(StochasticActor):
-    def __init__(self, state_dim, hidden_layers, action_dim):
-        super().__init__()
+    def __init__(self, state_dim, hidden_layers, action_dim, name="policy"):
+        super().__init__(name)
         backbone_dim = [state_dim] + list(hidden_layers)
         self.layers = build_backbone(backbone_dim, activation=nn.Tanh())
         self.backbone = nn.Sequential(*self.layers)
@@ -249,8 +256,8 @@ class StateDependentVarianceContinuousActor(StochasticActor):
 
 
 class ConstantVarianceContinuousActor(StochasticActor):
-    def __init__(self, state_dim, hidden_layers, action_dim):
-        super().__init__()
+    def __init__(self, state_dim, hidden_layers, action_dim, name="policy"):
+        super().__init__(name)
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_mlp(layers, activation=nn.Tanh())
         self.std_param = 2
@@ -261,8 +268,8 @@ class ConstantVarianceContinuousActor(StochasticActor):
 
 
 class SquashedGaussianActor(StochasticActor):
-    def __init__(self, state_dim, hidden_layers, action_dim):
-        super().__init__()
+    def __init__(self, state_dim, hidden_layers, action_dim, name="policy"):
+        super().__init__(name)
         backbone_dim = [state_dim] + list(hidden_layers)
         self.layers = build_backbone(backbone_dim, activation=nn.Tanh())
         self.backbone = nn.Sequential(*self.layers)
@@ -289,8 +296,8 @@ class TunableVariancePPOActor(StochasticActor):
     The official PPO actor uses Tanh activation functions and orthogonal initialization
     """
 
-    def __init__(self, state_dim, hidden_layers, action_dim):
-        super().__init__()
+    def __init__(self, state_dim, hidden_layers, action_dim, name="policy"):
+        super().__init__(name)
         layers = [state_dim] + list(hidden_layers) + [action_dim]
         self.model = build_ortho_mlp(layers, activation=nn.Tanh())
         init_variance = torch.randn(1, action_dim)

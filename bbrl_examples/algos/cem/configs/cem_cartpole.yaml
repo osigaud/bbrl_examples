@@ -16,7 +16,7 @@
             pop_size: 10
             elites_nb: 5
             max_epochs: 8000
-            actor_type: DiscreteActor
+            actor_type: DiscreteDeterministicActor
             architecture:
                   actor_hidden_size: [4, 4]
 
