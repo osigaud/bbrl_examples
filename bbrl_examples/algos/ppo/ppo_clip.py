@@ -77,7 +77,7 @@ def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
         act_size,
         name="current_policy",
     )
-    tr_agent = Agents(train_env_agent, policy, PrintAgent())
+    tr_agent = Agents(train_env_agent, policy)
     ev_agent = Agents(eval_env_agent, policy)
 
     critic_agent = TemporalAgent(
@@ -367,7 +367,7 @@ def run_ppo_clip(cfg):
     # config_name="ppo_cartpole.yaml",
     config_name="ppo_single_state.yaml",
     # config_name="ppo_cartpole_continuous.yaml",
-    # version_base="1.1",
+    version_base="1.1",
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))
