@@ -33,7 +33,7 @@ from bbrl.workspace import Workspace
 # Agents(agent1,agent2,agent3,...) executes the different agents the one after the other
 # TemporalAgent(agent) executes an agent over multiple timesteps in the workspace,
 # or until a given condition is reached
-from bbrl.agents import Agents, TemporalAgent
+from bbrl.agents import Agents, TemporalAgent, PrintAgent
 
 # AutoResetGymAgent is an agent able to execute a batch of gym environments
 # with auto-resetting. These agents produce multiple variables in the workspace:
@@ -77,7 +77,7 @@ def create_ppo_agent(cfg, train_env_agent, eval_env_agent):
         act_size,
         name="current_policy",
     )
-    tr_agent = Agents(train_env_agent, policy)
+    tr_agent = Agents(train_env_agent, policy, PrintAgent())
     ev_agent = Agents(eval_env_agent, policy)
 
     critic_agent = TemporalAgent(
