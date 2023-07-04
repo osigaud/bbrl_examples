@@ -300,7 +300,6 @@ class TunableVariancePPOActor(StochasticActor):
     def __init__(self, state_dim, hidden_layers, action_dim, name="policy"):
         super().__init__(name)
         layers = [state_dim] + list(hidden_layers) + [action_dim]
-        print(layers)
         self.model = build_ortho_mlp(layers, activation=nn.Tanh())
         init_variance = torch.randn(1, action_dim)
         self.std_param = nn.parameter.Parameter(init_variance)
