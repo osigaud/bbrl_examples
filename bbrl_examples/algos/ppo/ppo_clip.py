@@ -367,7 +367,7 @@ def run_ppo_clip(cfg):
     # config_name="ppo_cartpole.yaml",
     config_name="ppo_single_state.yaml",
     # config_name="ppo_cartpole_continuous.yaml",
-    version_base="1.1",
+    # version_base="1.1",
 )
 def main(cfg: DictConfig):
     # print(OmegaConf.to_yaml(cfg))

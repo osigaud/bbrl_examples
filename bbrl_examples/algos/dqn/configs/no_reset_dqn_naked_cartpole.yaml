@@ -16,7 +16,6 @@
       eval_interval: 500
       nb_measures: 2
       nb_evals: 10
-      gae: 0.8
       discount_factor: 0.99
       architecture:
         hidden_size: [256, 256]
